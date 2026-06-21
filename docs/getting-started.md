@@ -161,18 +161,18 @@ Each prompt looks like `?  Question [default]:`. Here is every question you may 
 - **"Model"** `[llama3.2]` — the model id that endpoint expects.
 - **"API key"** `[none]` — a key if the endpoint needs one, otherwise leave the default.
 
-#### Q3. "Messaging Provider — Choice" `[1]`
+#### Q3. "How to reach SysBot — Choice" `[1]`
 
 ```
-  1) CLI       — terminal, no credentials needed
-  2) Telegram
-  3) Slack
+  1) Terminal only (default)
+  2) Telegram — also message it remotely
+  3) Slack — also message it remotely
 ```
 
-- **Type `1` (default)** to chat in your terminal. Nothing else to configure — great for trying SysBot out.
-- **Type `2`** to talk to your bot from Telegram.
-- **Type `3`** to use it in Slack.
-- *Why:* this decides where you message the bot from. You can change it later by editing `config.yaml` or passing `--provider`.
+- **Type `1` (default)** to just chat in your terminal. Nothing else to configure — great for trying SysBot out.
+- **Type `2`** to also run a Telegram bot you can message from your phone.
+- **Type `3`** to also run a Slack bot.
+- *Why:* the terminal is always available regardless of this choice — `sysbot --provider cli` works no matter what. Telegram/Slack are *additional* remote channels that run as a background service (see [Q4](#q4-start-sysbot-automatically-after-reboot-yn)). Even with one selected, you can still open a local terminal chat with `sysbot --provider cli` — it's a separate session with its own conversation history. Change it later by editing `config.yaml` or passing `--provider`.
 
 **Follow-up questions depend on the provider you chose:**
 

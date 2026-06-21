@@ -254,12 +254,15 @@ if (-not $SkipConfig) {
         }
     }
 
-    # ── Messaging provider ────────────────────────────────────────────────────
-    Section "Messaging Provider"
+    # ── How to reach SysBot ───────────────────────────────────────────────────
+    Section "How to reach SysBot"
+    Write-Host "  You can always chat in this terminal with 'sysbot --provider cli'."
+    Write-Host "  Add Telegram or Slack to also message SysBot remotely."
+    Write-Host ""
     $msgChoice = Menu -Default 1 -Options @(
-        "CLI       — chat in this terminal (no background service)",
-        "Telegram  — runs in the background to receive messages",
-        "Slack     — runs in the background to receive messages"
+        "Terminal only (default)",
+        "Telegram — also message it remotely",
+        "Slack — also message it remotely"
     )
 
     $TgToken = ""; $TgAllowedIds = "[]"; $SlackBot = ""; $SlackApp = ""

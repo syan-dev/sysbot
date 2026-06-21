@@ -256,12 +256,14 @@ if [[ "$SKIP_CONFIG" == false ]]; then
             ;;
     esac
 
-    # ── Messaging provider ────────────────────────────────────────────────────
-    section "Messaging Provider"
+    # ── How to reach SysBot ───────────────────────────────────────────────────
+    section "How to reach SysBot"
+    printf "  You can always chat in this terminal with ${BOLD}sysbot --provider cli${NC}.\n"
+    printf "  Add Telegram or Slack to also message SysBot remotely.\n\n"
     MSG_CHOICE=$(menu 1 \
-        "CLI       — chat in this terminal (no background service)" \
-        "Telegram  — runs in the background to receive messages" \
-        "Slack     — runs in the background to receive messages")
+        "Terminal only (default)" \
+        "Telegram — also message it remotely" \
+        "Slack — also message it remotely")
 
     TG_TOKEN=""; TG_ALLOWED_IDS="[]"; SLACK_BOT=""; SLACK_APP=""
     case "$MSG_CHOICE" in
