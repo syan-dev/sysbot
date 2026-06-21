@@ -67,7 +67,9 @@ function Menu {
 
     [Console]::CursorVisible = $false
     try {
+        $startY = [Console]::CursorTop
         Draw
+        $endY = [Console]::CursorTop
         while ($true) {
             $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
             switch ($key.VirtualKeyCode) {
@@ -81,10 +83,16 @@ function Menu {
                     }
                 }
             }
-            $pos = $Host.UI.RawUI.CursorPosition
-            $pos.Y -= $n
-            $Host.UI.RawUI.CursorPosition = $pos
+            # Blank the rows actually drawn last time (tracked via the real
+            # cursor position, so a wrapped label can't leave a ghost), then
+            # redraw from the top.
+            $blank = ' ' * [Console]::WindowWidth
+            for ($r = $startY; $r -lt $endY; $r++) {
+                [Console]::SetCursorPosition(0, $r); [Console]::Write($blank)
+            }
+            [Console]::SetCursorPosition(0, $startY)
             Draw
+            $endY = [Console]::CursorTop
         }
     } finally {
         [Console]::CursorVisible = $true
@@ -261,8 +269,8 @@ if (-not $SkipConfig) {
     Write-Host ""
     $msgChoice = Menu -Default 1 -Options @(
         "Terminal only (default)",
-        "Telegram — also message it remotely",
-        "Slack — also message it remotely"
+        "Telegram",
+        "Slack"
     )
 
     $TgToken = ""; $TgAllowedIds = "[]"; $SlackBot = ""; $SlackApp = ""

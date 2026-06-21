@@ -74,6 +74,7 @@ menu() {
 
     printf "  ${CYAN}?${NC}  Use ${BOLD}↑/↓${NC} then ${BOLD}Enter${NC}, or press a number:\n" >/dev/tty
     printf '\033[?25l' >/dev/tty            # hide cursor
+    printf '\0337' >/dev/tty                # save cursor at the top of the list
     # Always restore the cursor, even on Ctrl-C.
     trap 'printf "\033[?25h" >/dev/tty' RETURN
     _menu_draw
@@ -93,7 +94,9 @@ menu() {
                 (( key >= 1 && key <= n )) && _menu_sel=$(( key - 1 ))
                 ;;
         esac
-        printf '\033[%dA' "$n" >/dev/tty      # move back to the top of the list
+        # Restore to the saved top-of-list and clear everything below, then
+        # redraw. Counting lines breaks when a label wraps; this doesn't.
+        printf '\0338\033[J' >/dev/tty
         _menu_draw
     done
 
@@ -262,8 +265,8 @@ if [[ "$SKIP_CONFIG" == false ]]; then
     printf "  Add Telegram or Slack to also message SysBot remotely.\n\n"
     MSG_CHOICE=$(menu 1 \
         "Terminal only (default)" \
-        "Telegram — also message it remotely" \
-        "Slack — also message it remotely")
+        "Telegram" \
+        "Slack")
 
     TG_TOKEN=""; TG_ALLOWED_IDS="[]"; SLACK_BOT=""; SLACK_APP=""
     case "$MSG_CHOICE" in
