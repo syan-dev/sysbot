@@ -205,7 +205,7 @@ After you confirm, the installer:
 
 1. Writes your answers to **`config.yaml`** in the repo root.
 2. Installs the **`sysbot`** command.
-3. **For Telegram/Slack only:** installs and starts a **background service** that restarts on failure and (if you chose auto-start) on reboot. For **CLI**, nothing is installed to run in the background — you start a chat with `sysbot --provider cli` when you want it.
+3. **For Telegram/Slack only:** installs and starts a **background service** that restarts on failure and (if you chose auto-start) on reboot. For **CLI**, nothing is installed to run in the background — you start a chat with `sysbot --provider cli` when you want it. Re-running the installer **stops and replaces** any existing service (and **restarts** it) so a changed model/provider actually takes effect.
 
 When it finishes, your bot is configured — and already running if you set up a Telegram/Slack service. Continue to [Section 7](#7-have-your-first-conversation).
 

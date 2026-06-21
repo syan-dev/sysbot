@@ -393,7 +393,9 @@ if (-not (AskYN "Apply these settings?" $true)) {
 if ($NeedsService) {
     $TaskName = "SysBot"
 
+    # Remove any existing task first so the new config takes effect.
     if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+        Warn "Existing SysBot task found — stopping and replacing it…"
         Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     }

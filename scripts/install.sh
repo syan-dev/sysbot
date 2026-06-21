@@ -388,6 +388,13 @@ setup_linux() {
     UNIT_FILE="$UNIT_DIR/sysbot.service"
     mkdir -p "$UNIT_DIR"
 
+    # Replace any existing service so the new config takes effect (a running
+    # service keeps its old config in memory — `start` alone would not reload it).
+    if [[ -f "$UNIT_FILE" ]] || systemctl --user cat sysbot.service &>/dev/null; then
+        warn "Existing SysBot service found — stopping and replacing it…"
+        systemctl --user stop sysbot 2>/dev/null || true
+    fi
+
     cat > "$UNIT_FILE" <<EOF
 [Unit]
 Description=SysBot — local AI assistant with tools
@@ -406,17 +413,19 @@ EOF
 
     systemctl --user daemon-reload
 
+    # `restart` (not `start`) guarantees a running instance reloads the new config.
     if $AUTO_START; then
-        systemctl --user enable --now sysbot
+        systemctl --user enable sysbot 2>/dev/null || true
+        systemctl --user restart sysbot
         if command -v loginctl &>/dev/null; then
             loginctl enable-linger "$USER" 2>/dev/null \
                 && ok  "Linger enabled — starts at boot without login" \
                 || warn "Could not enable linger — service will start on first login"
         fi
-        ok "systemd service installed and enabled"
+        ok "systemd service installed, enabled, and (re)started"
     else
-        systemctl --user start sysbot
-        ok "systemd service started (not enabled at boot)"
+        systemctl --user restart sysbot
+        ok "systemd service (re)started (not enabled at boot)"
     fi
 
     printf "\n  Manage:\n"
@@ -431,6 +440,10 @@ setup_macos() {
     LOG_DIR="$HOME/Library/Logs/sysbot"
     mkdir -p "$PLIST_DIR" "$LOG_DIR"
 
+    # Unload any existing agent first so the reload picks up the new config.
+    if [[ -f "$PLIST_FILE" ]]; then
+        warn "Existing SysBot LaunchAgent found — stopping and replacing it…"
+    fi
     launchctl unload -w "$PLIST_FILE" 2>/dev/null || true
 
     cat > "$PLIST_FILE" <<EOF
