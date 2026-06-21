@@ -393,6 +393,55 @@ Write-Host "    Stop-ScheduledTask  -TaskName 'SysBot'"
 Write-Host "    Start-ScheduledTask -TaskName 'SysBot'"
 Write-Host "  Or open Task Scheduler (taskschd.msc) and find 'SysBot'."
 
+# ── How to use ──────────────────────────────────────────────────────────────
+# Resolve the messaging provider for the usage hint. It's set above only when a
+# fresh config was written; if the user kept an existing config.yaml, read it.
+$ProviderHelp = $MsgProvider
+if (-not $ProviderHelp -and (Test-Path $ConfigFile)) {
+    $line = Get-Content $ConfigFile | Where-Object { $_ -match '^\s*provider:' } | Select-Object -First 1
+    if ($line -match 'provider:\s*"?([a-z]+)"?') { $ProviderHelp = $Matches[1] }
+}
+if (-not $ProviderHelp) { $ProviderHelp = 'cli' }
+
+Section "How to use"
+switch ($ProviderHelp) {
+    'telegram' {
+        Write-Host "  SysBot is running as a Telegram bot."
+        Write-Host ""
+        Write-Host "    1. Open Telegram and find the bot you created with @BotFather"
+        Write-Host "    2. Send it a message, e.g.  what's my disk usage on / ?"
+        Write-Host "    3. Built-in commands:  /help (list tools)  /clear  /history"
+        Write-Host ""
+        Write-Host "  Prefer the terminal? Start a local chat anytime:"
+        Write-Host "    sysbot --provider cli"
+    }
+    'slack' {
+        Write-Host "  SysBot is running as a Slack bot."
+        Write-Host ""
+        Write-Host "    1. Invite the bot to a channel, or open a direct message with it"
+        Write-Host "    2. Send it a message, e.g.  what's my disk usage on / ?"
+        Write-Host "    3. Built-in commands:  /help (list tools)  /clear  /history"
+        Write-Host ""
+        Write-Host "  Prefer the terminal? Start a local chat anytime:"
+        Write-Host "    sysbot --provider cli"
+    }
+    default {  # cli
+        Write-Host "  Start chatting in your terminal:"
+        Write-Host "    sysbot --provider cli"
+        Write-Host ""
+        Write-Host "  Then try:"
+        Write-Host "    - Ask in plain language    what's my disk usage on / ?"
+        Write-Host "    - Run a tool directly      /disk_usage path=/"
+        Write-Host "    - List available tools     /help"
+        Write-Host "    - Clear the conversation   /clear"
+        Write-Host "    - Leave                    type exit"
+    }
+}
+
+Write-Host ""
+Write-Host "  Full usage guide:  docs\usage.md"
+Write-Host "  Activity logs:     logs\sysbot.log  and  logs\traces.jsonl"
+
 Hr
 Write-Host ""
 Write-Host "  SysBot is running." -ForegroundColor Green

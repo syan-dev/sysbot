@@ -456,6 +456,49 @@ case "$OS" in
     *) warn "Unsupported OS: $OS — see SERVICE.md for manual setup." ;;
 esac
 
+# ── How to use ────────────────────────────────────────────────────────────────
+# Resolve the messaging provider for the usage hint. It's set above only when a
+# fresh config was written; if the user kept an existing config.yaml, read it.
+PROVIDER_HELP="${MSG_PROVIDER:-}"
+if [[ -z "$PROVIDER_HELP" && -f "$REPO_DIR/config.yaml" ]]; then
+    PROVIDER_HELP=$(grep -E '^[[:space:]]*provider:' "$REPO_DIR/config.yaml" \
+        | head -1 | sed -E 's/.*provider:[[:space:]]*//; s/["'\'' ]//g')
+fi
+PROVIDER_HELP="${PROVIDER_HELP:-cli}"
+
+section "How to use"
+case "$PROVIDER_HELP" in
+    telegram)
+        printf "  SysBot is running as a ${BOLD}Telegram${NC} bot.\n\n"
+        printf "    1. Open Telegram and find the bot you created with @BotFather\n"
+        printf "    2. Send it a message, e.g.  ${BOLD}what's my disk usage on / ?${NC}\n"
+        printf "    3. Built-in commands:  ${BOLD}/help${NC} (list tools)  ${BOLD}/clear${NC}  ${BOLD}/history${NC}\n\n"
+        printf "  Prefer the terminal? Start a local chat anytime:\n"
+        printf "    ${BOLD}sysbot --provider cli${NC}\n"
+        ;;
+    slack)
+        printf "  SysBot is running as a ${BOLD}Slack${NC} bot.\n\n"
+        printf "    1. Invite the bot to a channel, or open a direct message with it\n"
+        printf "    2. Send it a message, e.g.  ${BOLD}what's my disk usage on / ?${NC}\n"
+        printf "    3. Built-in commands:  ${BOLD}/help${NC} (list tools)  ${BOLD}/clear${NC}  ${BOLD}/history${NC}\n\n"
+        printf "  Prefer the terminal? Start a local chat anytime:\n"
+        printf "    ${BOLD}sysbot --provider cli${NC}\n"
+        ;;
+    *)  # cli
+        printf "  Start chatting in your terminal:\n"
+        printf "    ${BOLD}sysbot --provider cli${NC}\n\n"
+        printf "  Then try:\n"
+        printf "    • Ask in plain language    ${BOLD}what's my disk usage on / ?${NC}\n"
+        printf "    • Run a tool directly      ${BOLD}/disk_usage path=/${NC}\n"
+        printf "    • List available tools     ${BOLD}/help${NC}\n"
+        printf "    • Clear the conversation   ${BOLD}/clear${NC}\n"
+        printf "    • Leave                    type ${BOLD}exit${NC}\n"
+        ;;
+esac
+
+printf "\n  Full usage guide:  ${BOLD}docs/usage.md${NC}\n"
+printf "  Activity logs:     ${BOLD}logs/sysbot.log${NC}  and  ${BOLD}logs/traces.jsonl${NC}\n"
+
 hr
 printf "\n  ${GREEN}${BOLD}SysBot is running.${NC}\n"
 printf "  Edit ${BOLD}%s/config.yaml${NC} to adjust any settings.\n\n" "$REPO_DIR"
