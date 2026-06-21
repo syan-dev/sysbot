@@ -1,0 +1,49 @@
+messaging:
+  provider: cli  # cli | telegram | slack
+
+  telegram:
+    token: "${TELEGRAM_TOKEN}"
+    allowed_user_ids: []  # Empty = allow everyone
+
+  slack:
+    bot_token: "${SLACK_BOT_TOKEN}"
+    app_token: "${SLACK_APP_TOKEN}"
+
+llm:
+  base_url: "http://localhost:11434/v1"  # Ollama default
+  model: "qwen3.5"
+  api_key: "ollama"      # Placeholder — required by openai SDK
+  temperature: 0.7
+  max_tokens: 4096
+  timeout: 120.0
+
+  # vLLM example:
+  # base_url: "http://localhost:8000/v1"
+  # model: "meta-llama/Llama-3.2-8B-Instruct"
+  # api_key: "vllm"
+
+  # OpenAI example:
+  # base_url: "https://api.openai.com/v1"
+  # model: "gpt-4o"
+  # api_key: "${OPENAI_API_KEY}"
+
+mcp:
+  tools_dir: "./tools"
+  hot_reload: true  # Reload tools on file change without restart
+
+agent:
+  system_prompt: >
+    You are a helpful assistant with access to tools.
+    Use tools when they help answer the user's question.
+    Be concise and clear.
+  max_history: 50
+  max_tool_calls: 10
+
+logging:
+  level: INFO                    # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  file: logs/sysbot.log          # set to null to disable the application log
+  trace_file: logs/traces.jsonl  # set to null to disable per-request traces
+  # Both files rotate on time (TimedRotatingFileHandler) so they can't grow
+  # without bound. `when` is the interval, `backup_count` how many to keep.
+  when: midnight                 # midnight | H (hourly) | D | W0..W6 | S
+  backup_count: 7                # keep ~7 days of dated files, then delete oldest

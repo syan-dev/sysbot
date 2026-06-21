@@ -82,11 +82,11 @@ Each adapter implements `MessagingAdapter.start(handler)` and `send(user_id, tex
 
 ### Tracing (`sysbot/core/trace.py`)
 
-`TraceWriter` appends one JSON line per user message to `logs/traces.jsonl`. `ActiveTrace` accumulates per-LLM-turn and per-tool-call timings during a single `Agent.handle()` call, then flushes on `finish()`. Results and replies are truncated at 2000 characters in the trace output.
+`TraceWriter` appends one JSON line per user message to `logs/traces.jsonl` (slash commands aren't traced — they return before `_tracer.start()`). It writes through a dedicated non-propagating logger backed by a `TimedRotatingFileHandler`, so traces rotate on `logging.when` and keep `logging.backup_count` dated files. `ActiveTrace` accumulates per-LLM-turn and per-tool-call timings during a single `Agent.handle()` call, then flushes on `finish()`. Tracing has no levels — it's all-or-nothing per message; `result`/`reply` are truncated at 2000 characters.
 
 ### Logging (`sysbot/__main__.py`)
 
-`_setup_logging(verbose, log_file, interactive)` attaches a Rich console handler plus a DEBUG file handler. The root logger sits at DEBUG so the **file** always captures full detail; the **console** handler level is set independently: `WARNING` in interactive CLI mode (keeps the chat clean — no `httpx`/`watchfiles`/`Tools loaded` INFO interrupting the stream), `INFO` for the Telegram/Slack daemons, or `DEBUG` with `-v`. `main()` passes `interactive=(settings.messaging.provider == "cli")`.
+`_setup_logging(verbose, log_cfg, interactive)` attaches a Rich console handler plus a **`TimedRotatingFileHandler`** that rotates per `logging.when` (default `midnight`) and keeps `logging.backup_count` dated files (e.g. `sysbot.log.2026-06-21`) — neither file grows unbounded. The baseline level is `logging.level` (wired here; `-v` forces DEBUG). Root sits at DEBUG so each handler filters independently: the **file** logs at the config level, while the **console** is clamped to `WARNING+` in interactive CLI mode (keeps the chat clean — no `httpx`/`watchfiles`/`Tools loaded` INFO) and honours the config level for the Telegram/Slack daemons. `main()` passes `interactive=(settings.messaging.provider == "cli")`. Set `logging.file`/`logging.trace_file` to `null` to disable either.
 
 ## Adding a new tool
 

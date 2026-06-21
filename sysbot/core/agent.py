@@ -29,7 +29,11 @@ class Agent:
         self._reload_lock = asyncio.Lock()
         self._confirm_fn: ConfirmCallback | None = None
         self._tracer: TraceWriter | None = (
-            TraceWriter(settings.logging.trace_file)
+            TraceWriter(
+                settings.logging.trace_file,
+                when=settings.logging.when,
+                backup_count=settings.logging.backup_count,
+            )
             if settings.logging.trace_file
             else None
         )

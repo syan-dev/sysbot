@@ -4,32 +4,47 @@ import argparse
 import asyncio
 import logging
 import sys
+from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
 from rich.logging import RichHandler
 
 from sysbot.core.agent import Agent
-from sysbot.core.config import Settings
+from sysbot.core.config import LogConfig, Settings
 
 
-def _setup_logging(
-    verbose: bool, log_file: str | None = None, interactive: bool = False
-) -> None:
-    # Console level: verbose → DEBUG; interactive CLI → WARNING (keep the chat
-    # clean — no httpx/watchfiles/"Tools loaded" INFO spam); otherwise INFO.
-    # The root logger stays at DEBUG so the file handler always captures detail.
-    console_level = (
-        logging.DEBUG if verbose else logging.WARNING if interactive else logging.INFO
-    )
+def _setup_logging(verbose: bool, log_cfg: LogConfig, interactive: bool = False) -> None:
+    # Baseline level comes from config (`logging.level`); `-v` forces DEBUG.
+    base = getattr(logging, str(log_cfg.level).upper(), logging.INFO)
+    # Interactive CLI keeps the console at WARNING+ (no httpx/watchfiles/"Tools
+    # loaded" INFO interrupting the chat); the daemons honour the config level.
+    if verbose:
+        console_level = logging.DEBUG
+    elif interactive:
+        console_level = max(base, logging.WARNING)
+    else:
+        console_level = base
+
     console = RichHandler(rich_tracebacks=True, show_path=False)
     console.setLevel(console_level)
     handlers: list[logging.Handler] = [console]
-    if log_file:
-        Path(log_file).parent.mkdir(parents=True, exist_ok=True)
-        fh = logging.FileHandler(log_file, encoding="utf-8")
-        fh.setLevel(logging.DEBUG)
+
+    if log_cfg.file:
+        Path(log_cfg.file).parent.mkdir(parents=True, exist_ok=True)
+        # Time-based rotation: roll over per `when` (default midnight) and keep
+        # `backup_count` dated files (e.g. sysbot.log.2026-06-21) so it can't grow
+        # without bound.
+        fh = TimedRotatingFileHandler(
+            log_cfg.file,
+            when=log_cfg.when,
+            backupCount=log_cfg.backup_count,
+            encoding="utf-8",
+        )
+        fh.setLevel(logging.DEBUG if verbose else base)
         fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
         handlers.append(fh)
+
+    # Root at DEBUG so handlers decide what they emit (each has its own level).
     logging.basicConfig(level=logging.DEBUG, format="%(message)s", handlers=handlers)
 
 
@@ -97,7 +112,7 @@ def main() -> None:
 
     _setup_logging(
         args.verbose,
-        settings.logging.file,
+        settings.logging,
         interactive=(settings.messaging.provider == "cli"),
     )
 
