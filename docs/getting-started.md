@@ -189,9 +189,10 @@ Each prompt looks like `?  Question [default]:`. Here is every question you may 
 
 #### Q4. "Start SysBot automatically after reboot?" `[Y/n]`
 
-- **Type `y` (default)** to install a background service (systemd on Linux, launchd on macOS, Task Scheduler on Windows) that starts SysBot now and again on every boot/login.
-- **Type `n`** to skip the service — you'll start SysBot yourself when you want it.
-- *Why:* for a Telegram/Slack bot you usually want it always-on; for casual CLI use you may not.
+- **Only appears for Telegram or Slack.** Those providers run in the background to poll for incoming messages, so they're installed as a service (systemd on Linux, launchd on macOS, Task Scheduler on Windows). The **CLI** provider is an interactive terminal session you start on demand — it installs no service, so this question is skipped entirely.
+- **Type `y` (default)** to have the service start now and again on every boot/login.
+- **Type `n`** to install the service but start it yourself when you want it.
+- *Why:* a chat bot you message from your phone should be always-on; a terminal session shouldn't be a background daemon (it has no terminal to read from).
 
 #### Q5. "Apply these settings?" `[Y/n]`
 
@@ -204,9 +205,9 @@ After you confirm, the installer:
 
 1. Writes your answers to **`config.yaml`** in the repo root.
 2. Installs the **`sysbot`** command.
-3. If you chose auto-start, installs and starts a **background service** that restarts on failure and on reboot.
+3. **For Telegram/Slack only:** installs and starts a **background service** that restarts on failure and (if you chose auto-start) on reboot. For **CLI**, nothing is installed to run in the background — you start a chat with `sysbot --provider cli` when you want it.
 
-When it finishes, your bot is configured (and running, if you enabled the service). Continue to [Section 7](#7-have-your-first-conversation).
+When it finishes, your bot is configured — and already running if you set up a Telegram/Slack service. Continue to [Section 7](#7-have-your-first-conversation).
 
 > Managing the background service (start/stop/logs) is covered in [SERVICE.md](../SERVICE.md).
 

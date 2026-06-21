@@ -257,9 +257,9 @@ if (-not $SkipConfig) {
     # ── Messaging provider ────────────────────────────────────────────────────
     Section "Messaging Provider"
     $msgChoice = Menu -Default 1 -Options @(
-        "CLI       — terminal, no credentials needed",
-        "Telegram",
-        "Slack"
+        "CLI       — chat in this terminal (no background service)",
+        "Telegram  — runs in the background to receive messages",
+        "Slack     — runs in the background to receive messages"
     )
 
     $TgToken = ""; $TgAllowedIds = "[]"; $SlackBot = ""; $SlackApp = ""
@@ -325,9 +325,27 @@ logging:
     Ok "config.yaml written"
 }
 
+# ── Resolve provider ──────────────────────────────────────────────────────────
+# $MsgProvider is set above only when a fresh config was written; if the user
+# kept an existing config.yaml, read the provider back from it. Only Telegram and
+# Slack need an always-on background service to poll for messages — CLI is an
+# interactive terminal session the user starts on demand.
+$Provider = $MsgProvider
+if (-not $Provider -and (Test-Path $ConfigFile)) {
+    $line = Get-Content $ConfigFile | Where-Object { $_ -match '^\s*provider:' } | Select-Object -First 1
+    if ($line -match 'provider:\s*"?([a-z]+)"?') { $Provider = $Matches[1] }
+}
+if (-not $Provider) { $Provider = 'cli' }
+$NeedsService = $Provider -in @('telegram', 'slack')
+
 # ── Auto-start ────────────────────────────────────────────────────────────────
-Section "Service"
-$AutoStart = AskYN "Start SysBot automatically after reboot?" $true
+$AutoStart = $false
+if ($NeedsService) {
+    Section "Service"
+    Write-Host "  A $Provider bot runs in the background, so it installs as a service."
+    Write-Host ""
+    $AutoStart = AskYN "Start SysBot automatically after reboot?" $true
+}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 4. SUMMARY + CONFIRM
@@ -339,9 +357,13 @@ Write-Host "  Summary" -ForegroundColor White
 Write-Host ""
 if (-not $SkipConfig) {
     Write-Host "  LLM        $LlmModel  ($LlmBaseUrl)"
-    Write-Host "  Provider   $MsgProvider"
 }
-$startupLabel = if ($AutoStart) { "enabled — starts at login" } else { "disabled" }
+Write-Host "  Provider   $Provider"
+if ($NeedsService) {
+    $startupLabel = if ($AutoStart) { "enabled — starts at login" } else { "started now, not at login" }
+} else {
+    $startupLabel = "runs in your terminal (no background service)"
+}
 Write-Host "  Startup    $startupLabel"
 Write-Host "  Config     $ConfigFile"
 Write-Host "  Working    $RepoDir"
@@ -349,62 +371,55 @@ Write-Host ""
 
 if (-not (AskYN "Apply these settings?" $true)) {
     Write-Host ""
-    Write-Host "  Aborted. No service has been installed." -ForegroundColor Yellow
+    Write-Host "  Aborted." -ForegroundColor Yellow
     Write-Host ""
     exit 0
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 5. TASK SCHEDULER SETUP
+# 5. TASK SCHEDULER SETUP  (Telegram/Slack only — CLI is interactive)
 # ═══════════════════════════════════════════════════════════════════════════════
-$TaskName = "SysBot"
+if ($NeedsService) {
+    $TaskName = "SysBot"
 
-if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+    }
+
+    $action    = New-ScheduledTaskAction -Execute $SysbotBin -WorkingDirectory $RepoDir
+    $settings  = New-ScheduledTaskSettingsSet `
+        -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+        -ExecutionTimeLimit ([System.TimeSpan]::Zero) `
+        -MultipleInstances IgnoreNew -StartWhenAvailable $true
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
+
+    if ($AutoStart) {
+        $trigger = New-ScheduledTaskTrigger -AtLogon -User $env:USERNAME
+        Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
+            -Settings $settings -Principal $principal -Force | Out-Null
+        Ok "Task Scheduler entry created — starts at login"
+    } else {
+        # Register without a trigger so it can be started manually
+        Register-ScheduledTask -TaskName $TaskName -Action $action `
+            -Settings $settings -Principal $principal -Force | Out-Null
+        Ok "Task Scheduler entry created (no auto-start trigger)"
+    }
+
+    Start-ScheduledTask -TaskName $TaskName
+    Ok "SysBot started"
+
+    Write-Host ""
+    Write-Host "  Manage:"
+    Write-Host "    Get-ScheduledTask  -TaskName 'SysBot' | Select-Object State"
+    Write-Host "    Stop-ScheduledTask  -TaskName 'SysBot'"
+    Write-Host "    Start-ScheduledTask -TaskName 'SysBot'"
+    Write-Host "  Or open Task Scheduler (taskschd.msc) and find 'SysBot'."
 }
-
-$action    = New-ScheduledTaskAction -Execute $SysbotBin -WorkingDirectory $RepoDir
-$settings  = New-ScheduledTaskSettingsSet `
-    -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
-    -ExecutionTimeLimit ([System.TimeSpan]::Zero) `
-    -MultipleInstances IgnoreNew -StartWhenAvailable $true
-$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
-
-if ($AutoStart) {
-    $trigger = New-ScheduledTaskTrigger -AtLogon -User $env:USERNAME
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
-        -Settings $settings -Principal $principal -Force | Out-Null
-    Ok "Task Scheduler entry created — starts at login"
-} else {
-    # Register without a trigger so it can be started manually
-    Register-ScheduledTask -TaskName $TaskName -Action $action `
-        -Settings $settings -Principal $principal -Force | Out-Null
-    Ok "Task Scheduler entry created (no auto-start trigger)"
-}
-
-Start-ScheduledTask -TaskName $TaskName
-Ok "SysBot started"
-
-Write-Host ""
-Write-Host "  Manage:"
-Write-Host "    Get-ScheduledTask  -TaskName 'SysBot' | Select-Object State"
-Write-Host "    Stop-ScheduledTask  -TaskName 'SysBot'"
-Write-Host "    Start-ScheduledTask -TaskName 'SysBot'"
-Write-Host "  Or open Task Scheduler (taskschd.msc) and find 'SysBot'."
 
 # ── How to use ──────────────────────────────────────────────────────────────
-# Resolve the messaging provider for the usage hint. It's set above only when a
-# fresh config was written; if the user kept an existing config.yaml, read it.
-$ProviderHelp = $MsgProvider
-if (-not $ProviderHelp -and (Test-Path $ConfigFile)) {
-    $line = Get-Content $ConfigFile | Where-Object { $_ -match '^\s*provider:' } | Select-Object -First 1
-    if ($line -match 'provider:\s*"?([a-z]+)"?') { $ProviderHelp = $Matches[1] }
-}
-if (-not $ProviderHelp) { $ProviderHelp = 'cli' }
-
 Section "How to use"
-switch ($ProviderHelp) {
+switch ($Provider) {
     'telegram' {
         Write-Host "  SysBot is running as a Telegram bot."
         Write-Host ""
@@ -444,6 +459,10 @@ Write-Host "  Activity logs:     logs\sysbot.log  and  logs\traces.jsonl"
 
 Hr
 Write-Host ""
-Write-Host "  SysBot is running." -ForegroundColor Green
+if ($NeedsService) {
+    Write-Host "  SysBot is running." -ForegroundColor Green
+} else {
+    Write-Host "  SysBot is ready." -ForegroundColor Green
+}
 Write-Host "  Edit $ConfigFile to adjust any settings."
 Write-Host ""

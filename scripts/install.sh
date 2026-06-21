@@ -259,9 +259,9 @@ if [[ "$SKIP_CONFIG" == false ]]; then
     # ── Messaging provider ────────────────────────────────────────────────────
     section "Messaging Provider"
     MSG_CHOICE=$(menu 1 \
-        "CLI       — terminal, no credentials needed" \
-        "Telegram" \
-        "Slack")
+        "CLI       — chat in this terminal (no background service)" \
+        "Telegram  — runs in the background to receive messages" \
+        "Slack     — runs in the background to receive messages")
 
     TG_TOKEN=""; TG_ALLOWED_IDS="[]"; SLACK_BOT=""; SLACK_APP=""
     case "$MSG_CHOICE" in
@@ -327,11 +327,28 @@ EOF
 
 fi  # end SKIP_CONFIG
 
+# ── Resolve provider ──────────────────────────────────────────────────────────
+# $MSG_PROVIDER is set above only when a fresh config was written; if the user
+# kept an existing config.yaml, read the provider back from it. Only Telegram and
+# Slack need an always-on background service to poll for messages — CLI is an
+# interactive terminal session the user starts on demand.
+PROVIDER="${MSG_PROVIDER:-}"
+if [[ -z "$PROVIDER" && -f "$REPO_DIR/config.yaml" ]]; then
+    PROVIDER=$(grep -E '^[[:space:]]*provider:' "$REPO_DIR/config.yaml" \
+        | head -1 | sed -E 's/.*provider:[[:space:]]*//; s/["'\'' ]//g')
+fi
+PROVIDER="${PROVIDER:-cli}"
+NEEDS_SERVICE=false
+[[ "$PROVIDER" == telegram || "$PROVIDER" == slack ]] && NEEDS_SERVICE=true
+
 # ── Auto-start ────────────────────────────────────────────────────────────────
-section "Service"
 AUTO_START=false
-if ask_yn "Start SysBot automatically after reboot?" "y"; then
-    AUTO_START=true
+if $NEEDS_SERVICE; then
+    section "Service"
+    printf "  A %s bot runs in the background, so it installs as a service.\n\n" "$PROVIDER"
+    if ask_yn "Start SysBot automatically after reboot?" "y"; then
+        AUTO_START=true
+    fi
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -342,15 +359,19 @@ hr
 printf "\n  ${BOLD}Summary${NC}\n\n"
 if [[ "$SKIP_CONFIG" == false ]]; then
     printf "  LLM        %s  (%s)\n" "$LLM_MODEL" "$LLM_BASE_URL"
-    printf "  Provider   %s\n" "$MSG_PROVIDER"
 fi
-printf "  Startup    %s\n" "$( $AUTO_START && echo "enabled — starts at reboot" || echo "disabled" )"
+printf "  Provider   %s\n" "$PROVIDER"
+if $NEEDS_SERVICE; then
+    printf "  Startup    %s\n" "$( $AUTO_START && echo "enabled — starts at reboot" || echo "started now, not at reboot" )"
+else
+    printf "  Startup    runs in your terminal (no background service)\n"
+fi
 printf "  Config     %s/config.yaml\n" "$REPO_DIR"
 printf "  Working    %s\n" "$REPO_DIR"
 printf "\n"
 
 if ! ask_yn "Apply these settings?" "y"; then
-    printf "\n  ${YELLOW}Aborted. No service has been installed.${NC}\n\n"
+    printf "\n  ${YELLOW}Aborted.${NC}\n\n"
     exit 0
 fi
 
@@ -449,25 +470,18 @@ EOF
     printf "    tail -f %s/stdout.log\n" "$LOG_DIR"
 }
 
-printf "\n"
-case "$OS" in
-    Linux*)  setup_linux  ;;
-    Darwin*) setup_macos  ;;
-    *) warn "Unsupported OS: $OS — see SERVICE.md for manual setup." ;;
-esac
+if $NEEDS_SERVICE; then
+    printf "\n"
+    case "$OS" in
+        Linux*)  setup_linux  ;;
+        Darwin*) setup_macos  ;;
+        *) warn "Unsupported OS: $OS — see SERVICE.md for manual setup." ;;
+    esac
+fi
 
 # ── How to use ────────────────────────────────────────────────────────────────
-# Resolve the messaging provider for the usage hint. It's set above only when a
-# fresh config was written; if the user kept an existing config.yaml, read it.
-PROVIDER_HELP="${MSG_PROVIDER:-}"
-if [[ -z "$PROVIDER_HELP" && -f "$REPO_DIR/config.yaml" ]]; then
-    PROVIDER_HELP=$(grep -E '^[[:space:]]*provider:' "$REPO_DIR/config.yaml" \
-        | head -1 | sed -E 's/.*provider:[[:space:]]*//; s/["'\'' ]//g')
-fi
-PROVIDER_HELP="${PROVIDER_HELP:-cli}"
-
 section "How to use"
-case "$PROVIDER_HELP" in
+case "$PROVIDER" in
     telegram)
         printf "  SysBot is running as a ${BOLD}Telegram${NC} bot.\n\n"
         printf "    1. Open Telegram and find the bot you created with @BotFather\n"
@@ -500,5 +514,9 @@ printf "\n  Full usage guide:  ${BOLD}docs/usage.md${NC}\n"
 printf "  Activity logs:     ${BOLD}logs/sysbot.log${NC}  and  ${BOLD}logs/traces.jsonl${NC}\n"
 
 hr
-printf "\n  ${GREEN}${BOLD}SysBot is running.${NC}\n"
+if $NEEDS_SERVICE; then
+    printf "\n  ${GREEN}${BOLD}SysBot is running.${NC}\n"
+else
+    printf "\n  ${GREEN}${BOLD}SysBot is ready.${NC}\n"
+fi
 printf "  Edit ${BOLD}%s/config.yaml${NC} to adjust any settings.\n\n" "$REPO_DIR"
