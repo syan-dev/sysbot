@@ -11,14 +11,14 @@ Runs entirely on your machine with [Ollama](https://ollama.com). No cloud requir
 You chat in plain language; a local LLM decides which of your tools to run and
 answers with the results:
 
-```
- you (CLI / Telegram / Slack)
-   │  "how much disk space is left?"
-   ▼
- MessagingAdapter ──▶ Agent ──▶ LLM (Ollama, vLLM, OpenAI, …)
-                        │  ▲        │ "call disk_usage(path='/')"
-                        ▼  │ result ▼
-                      ToolRegistry — tools/ folder, hot-reloaded
+```mermaid
+flowchart TD
+    you["you (CLI / Telegram / Slack)"] -- "&quot;how much disk space is left?&quot;" --> adapter["MessagingAdapter"]
+    adapter --> agent["Agent"]
+    agent -- chat --> llm["LLM (Ollama, vLLM, OpenAI, …)"]
+    llm -- "call disk_usage(path='/')" --> agent
+    agent -- run tool --> registry["ToolRegistry<br>tools/ folder, hot-reloaded"]
+    registry -- result --> agent
 ```
 
 A **tool** is just a Python function (or wrapped shell command) in a folder —

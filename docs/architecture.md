@@ -15,20 +15,13 @@ that. Read this when you want to understand, modify, or contribute to the code
 
 SysBot is three independent layers wired together by one class, `Agent`:
 
-```
- you (CLI / Telegram / Slack)
-   │  "how much disk space is left?"
-   ▼
-┌────────────────────┐      ┌──────────────────┐      ┌─────────────────┐
-│  MessagingAdapter  │ ───▶ │      Agent       │ ───▶ │    LLMClient    │
-│ (how you reach it) │      │ (the middleman)  │      │ (the model)     │
-└────────────────────┘      └──────────────────┘      └─────────────────┘
-                                     │  ▲
-                       "run a tool"  ▼  │  tool result
-                            ┌──────────────────┐
-                            │   ToolRegistry   │
-                            │ (what it can do) │
-                            └──────────────────┘
+```mermaid
+flowchart TD
+    you["you (CLI / Telegram / Slack)"] -- "&quot;how much disk space is left?&quot;" --> adapter["MessagingAdapter<br>(how you reach it)"]
+    adapter --> agent["Agent<br>(the middleman)"]
+    agent --> llm["LLMClient<br>(the model)"]
+    agent -- "run a tool" --> registry["ToolRegistry<br>(what it can do)"]
+    registry -- "tool result" --> agent
 ```
 
 - **MessagingAdapter** ([sysbot/messaging/](../sysbot/messaging/)) — where
@@ -88,6 +81,32 @@ Everything starts in [sysbot/__main__.py](../sysbot/__main__.py):
 This is the heart of SysBot — `Agent.handle(user_id, text)` in
 [sysbot/core/agent.py](../sysbot/core/agent.py). Every message from every
 adapter goes through the same steps:
+
+```mermaid
+sequenceDiagram
+    actor you
+    participant adapter as MessagingAdapter
+    participant agent as Agent
+    participant llm as LLMClient
+    participant registry as ToolRegistry
+
+    you->>adapter: "how much disk space is left?"
+    adapter->>agent: handle(user_id, text)
+    Note over agent: starts with "/" ? run the tool<br>directly — the LLM is never called
+    agent->>agent: append to ConversationHistory
+    loop until the model answers in text (max agent.max_tool_calls rounds)
+        agent->>llm: chat(history, tool schemas)
+        llm-->>agent: tool_calls: disk_usage(path='/')
+        opt tool marked confirm=True
+            agent->>you: adapter.confirm(…) — y/n or buttons
+        end
+        agent->>registry: run tools (parallel via asyncio.gather)
+        registry-->>agent: results, appended to history
+    end
+    llm-->>agent: streamed final answer
+    agent-->>adapter: reply
+    adapter-->>you: "You have 42 GB free."
+```
 
 **Step 1 — Slash commands take a shortcut.** If the text starts with `/`, it's
 dispatched straight to `_handle_slash()`: the tool runs immediately and the
@@ -267,13 +286,15 @@ full reference is in [Configuration](configuration.md).
 
 `sysbot tools install owner/repo` ([sysbot/install/](../sysbot/install/))
 downloads a tool folder package from GitHub **into the same tools directory
-the bot loads** — so a running bot picks it up via hot reload. Pipeline, in
-module order: `spec.py` parses the source spec → `fetch.py` downloads a GitHub
-zipball over HTTPS (no `git` binary needed) → `archive.py` extracts it with
-zip-slip/symlink/size guards → `meta.py` reads README frontmatter *without
-importing any package code* → `manager.py` moves packages into place and
-records provenance in `tools.lock.json`. User guide:
-[Installing Tools](installing-tools.md); trust model included.
+the bot loads** — so a running bot picks it up via hot reload. The pipeline,
+one module per stage:
+
+```mermaid
+flowchart LR
+    spec["spec.py<br>parse the<br>source spec"] --> fetch["fetch.py<br>download the zipball<br>(HTTPS, no git binary)"] --> archive["archive.py<br>extract with zip-slip/<br>symlink/size guards"] --> meta["meta.py<br>read README frontmatter<br>(no package code imported)"] --> manager["manager.py<br>move into tools/, record<br>provenance in tools.lock.json"]
+```
+
+User guide: [Installing Tools](installing-tools.md); trust model included.
 
 ---
 
