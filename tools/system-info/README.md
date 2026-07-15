@@ -1,0 +1,18 @@
+---
+name: system-info
+description: Basic machine info and free disk space
+platforms: all
+requires: []
+---
+# system-info
+
+Pure-Python system inspection — works everywhere, no external dependencies.
+
+**Runs on:** Linux · macOS · Windows  ·  **Needs:** nothing
+
+## Tools
+- `/get_system_info` — OS, Python version, and CPU architecture.
+- `/disk_usage <path>` — total / free / used% for the filesystem at `<path>`.
+
+## Copy-paste
+Drop this `system-info/` folder into your `~/.sysbot/tools/` and restart SysBot.
