@@ -165,6 +165,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 OS="$(uname -s)"
 
+# Per-user data home — one stable place for config, tools and logs, decoupled
+# from wherever the source was cloned. Override with SYSBOT_HOME. The app loads
+# $DATA_DIR/config.yaml by default (see sysbot/core/paths.py: user_dir()).
+DATA_DIR="${SYSBOT_HOME:-$HOME/.sysbot}"
+
 clear
 printf "\n"
 hr
@@ -214,9 +219,11 @@ ok "Binary: $SYSBOT_BIN"
 # ═══════════════════════════════════════════════════════════════════════════════
 # 3. SETUP WIZARD
 # ═══════════════════════════════════════════════════════════════════════════════
-if [[ -f "$REPO_DIR/config.yaml" ]]; then
+mkdir -p "$DATA_DIR"
+
+if [[ -f "$DATA_DIR/config.yaml" ]]; then
     printf "\n"
-    if ! ask_yn "config.yaml already exists — overwrite with new settings?" "n"; then
+    if ! ask_yn "$DATA_DIR/config.yaml already exists — overwrite with new settings?" "n"; then
         printf "\n  Keeping existing config.yaml.\n"
         SKIP_CONFIG=true
     else
@@ -291,7 +298,9 @@ if [[ "$SKIP_CONFIG" == false ]]; then
     esac
 
     # ── Write config.yaml ─────────────────────────────────────────────────────
-    cat > "$REPO_DIR/config.yaml" <<EOF
+    # tools_dir/logs stay relative — the app anchors them to the config's
+    # directory ($DATA_DIR), so they resolve to $DATA_DIR/tools and $DATA_DIR/logs.
+    cat > "$DATA_DIR/config.yaml" <<EOF
 messaging:
   provider: $MSG_PROVIDER
 
@@ -328,9 +337,17 @@ logging:
   file: logs/sysbot.log
   trace_file: logs/traces.jsonl
 EOF
-    ok "config.yaml written"
+    ok "config.yaml written to $DATA_DIR/config.yaml"
 
 fi  # end SKIP_CONFIG
+
+# Seed the user's tools/ from the bundled set on first install. Don't clobber a
+# tools dir the user has already customised on re-install.
+if [[ ! -d "$DATA_DIR/tools" && -d "$REPO_DIR/tools" ]]; then
+    cp -R "$REPO_DIR/tools" "$DATA_DIR/tools"
+    rm -rf "$DATA_DIR/tools/__pycache__"
+    ok "tools copied to $DATA_DIR/tools"
+fi
 
 # ── Resolve provider ──────────────────────────────────────────────────────────
 # $MSG_PROVIDER is set above only when a fresh config was written; if the user
@@ -338,8 +355,8 @@ fi  # end SKIP_CONFIG
 # Slack need an always-on background service to poll for messages — CLI is an
 # interactive terminal session the user starts on demand.
 PROVIDER="${MSG_PROVIDER:-}"
-if [[ -z "$PROVIDER" && -f "$REPO_DIR/config.yaml" ]]; then
-    PROVIDER=$(grep -E '^[[:space:]]*provider:' "$REPO_DIR/config.yaml" \
+if [[ -z "$PROVIDER" && -f "$DATA_DIR/config.yaml" ]]; then
+    PROVIDER=$(grep -E '^[[:space:]]*provider:' "$DATA_DIR/config.yaml" \
         | head -1 | sed -E 's/.*provider:[[:space:]]*//; s/["'\'' ]//g')
 fi
 PROVIDER="${PROVIDER:-cli}"
@@ -371,8 +388,8 @@ if $NEEDS_SERVICE; then
 else
     printf "  Startup    runs in your terminal (no background service)\n"
 fi
-printf "  Config     %s/config.yaml\n" "$REPO_DIR"
-printf "  Working    %s\n" "$REPO_DIR"
+printf "  Config     %s/config.yaml\n" "$DATA_DIR"
+printf "  Working    %s\n" "$DATA_DIR"
 printf "\n"
 
 if ! ask_yn "Apply these settings?" "y"; then
@@ -402,7 +419,7 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$REPO_DIR
+WorkingDirectory=$DATA_DIR
 ExecStart=$SYSBOT_BIN
 Restart=on-failure
 RestartSec=5
@@ -461,7 +478,7 @@ setup_macos() {
     </array>
 
     <key>WorkingDirectory</key>
-    <string>$REPO_DIR</string>
+    <string>$DATA_DIR</string>
 
     <key>RunAtLoad</key>
     $( $AUTO_START && echo "<true/>" || echo "<false/>" )
@@ -488,12 +505,53 @@ EOF
     printf "    tail -f %s/stdout.log\n" "$LOG_DIR"
 }
 
+# Detect a background service left over from a previous install and offer to
+# stop & remove it. The CLI provider has no daemon, so without this a Telegram/
+# Slack service from an earlier setup would keep polling with its old config.
+remove_stale_service_linux() {
+    local unit="$HOME/.config/systemd/user/sysbot.service"
+    [[ -f "$unit" ]] || systemctl --user cat sysbot.service &>/dev/null || return 0
+    printf "\n"
+    warn "A background SysBot service is still installed from a previous setup."
+    if systemctl --user is-active --quiet sysbot 2>/dev/null; then warn "It is currently running."; fi
+    if ask_yn "Stop and remove that background service?" "y"; then
+        systemctl --user stop sysbot 2>/dev/null || true
+        systemctl --user disable sysbot 2>/dev/null || true
+        [[ -f "$unit" ]] && rm -f "$unit"
+        systemctl --user daemon-reload 2>/dev/null || true
+        ok "Background service stopped and removed"
+    else
+        warn "Left it in place — it will keep running in the background."
+    fi
+}
+
+remove_stale_service_macos() {
+    local plist="$HOME/Library/LaunchAgents/com.sysbot.sysbot.plist"
+    [[ -f "$plist" ]] || return 0
+    printf "\n"
+    warn "A background SysBot LaunchAgent is still installed from a previous setup."
+    if ask_yn "Stop and remove that background service?" "y"; then
+        launchctl unload -w "$plist" 2>/dev/null || true
+        rm -f "$plist"
+        ok "Background service stopped and removed"
+    else
+        warn "Left it in place — it will keep running in the background."
+    fi
+}
+
 if $NEEDS_SERVICE; then
     printf "\n"
     case "$OS" in
         Linux*)  setup_linux  ;;
         Darwin*) setup_macos  ;;
-        *) warn "Unsupported OS: $OS — see SERVICE.md for manual setup." ;;
+        *) warn "Unsupported OS: $OS — see docs/service.md for manual setup." ;;
+    esac
+else
+    # Terminal-only: no daemon needed. Clean up any leftover service so it
+    # doesn't keep running in the background with stale settings.
+    case "$OS" in
+        Linux*)  remove_stale_service_linux  ;;
+        Darwin*) remove_stale_service_macos  ;;
     esac
 fi
 
@@ -529,12 +587,17 @@ case "$PROVIDER" in
 esac
 
 printf "\n  Full usage guide:  ${BOLD}docs/usage.md${NC}\n"
-printf "  Activity logs:     ${BOLD}logs/sysbot.log${NC}  and  ${BOLD}logs/traces.jsonl${NC}\n"
+printf "  Activity logs:     ${BOLD}%s/logs/sysbot.log${NC}  and  ${BOLD}%s/logs/traces.jsonl${NC}\n" "$DATA_DIR" "$DATA_DIR"
 
 hr
 if $NEEDS_SERVICE; then
     printf "\n  ${GREEN}${BOLD}SysBot is running.${NC}\n"
+    printf "  Edit ${BOLD}%s/config.yaml${NC}, then restart to apply:\n" "$DATA_DIR"
+    case "$OS" in
+        Darwin*) printf "    ${BOLD}launchctl kickstart -k gui/\$(id -u)/com.sysbot.sysbot${NC}\n\n" ;;
+        *)       printf "    ${BOLD}systemctl --user restart sysbot${NC}\n\n" ;;
+    esac
 else
     printf "\n  ${GREEN}${BOLD}SysBot is ready.${NC}\n"
+    printf "  Edit ${BOLD}%s/config.yaml${NC} to adjust any settings.\n\n" "$DATA_DIR"
 fi
-printf "  Edit ${BOLD}%s/config.yaml${NC} to adjust any settings.\n\n" "$REPO_DIR"

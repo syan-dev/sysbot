@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+.build-venv/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.manifest
+
+# Runtime
+logs/
+
+# Local config (ships as config/default.yaml; users create their own)
+config.yaml
+
+# Installer / dashboard state (dev-checkout artifacts; installed setups keep theirs in ~/.sysbot)
+tools.lock.json
+tool_state.json

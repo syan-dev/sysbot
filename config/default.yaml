@@ -30,6 +30,15 @@ llm:
 mcp:
   tools_dir: "./tools"
   hot_reload: true  # Reload tools on file change without restart
+  # Records where `sysbot tools install` got each package (repo, pinned commit).
+  # Relative paths anchor next to this config, like tools_dir.
+  lock_file: tools.lock.json
+
+dashboard:
+  enabled: false       # or run `sysbot --dashboard`. Web UI to manage tools + LLM health.
+  host: "127.0.0.1"    # localhost only, no auth — change deliberately if exposing
+  port: 8765           # http://localhost:8765
+  state_file: tool_state.json  # persists disabled tools (relative → ~/.sysbot/)
 
 agent:
   system_prompt: >

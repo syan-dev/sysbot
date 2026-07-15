@@ -95,8 +95,8 @@ Available commands — use /help to see this list
 /disk_usage <path>
   Check how much free disk space is available at a given path
 
-/ping <host>
-  Ping a host to check connectivity and measure latency
+/fetch_url <url>
+  Fetch the text content of a URL
 ```
 
 In a tool's signature, `<angle>` means **required** and `[square]` means **optional**.
@@ -110,7 +110,7 @@ Slash commands let you run a tool precisely, without the LLM. There are two ways
 **Positional** — values fill the parameters in order:
 
 ```
-You: /ping 8.8.8.8
+You: /fetch_url https://example.com
 You: /disk_usage /
 ```
 
@@ -196,7 +196,37 @@ Precedence is **CLI flags → `SYSBOT_*` env vars → `config.yaml`**. The full 
 
 ---
 
-## 9. Where activity is logged
+## 9. Managing tools (enable / disable / remove)
+
+Every installed tool can be managed from the terminal — no dashboard or running
+bot needed. The commands act on the same state file and tools directory the bot
+loads, so what you change here is what the bot sees:
+
+```bash
+sysbot tools install owner/repo  # install tool package(s) from a GitHub repo
+sysbot tools list                # every tool: status, source package, origin
+sysbot tools info gpu_temp       # details: params, platform gating, provenance
+sysbot tools disable gpu_temp    # hide from the LLM; /gpu_temp refuses to run
+sysbot tools enable gpu_temp     # turn it back on
+sysbot tools remove gpu_temp     # DELETE its folder package / .py file (asks y/N)
+```
+
+- **disable/enable** is reversible and persisted (`tool_state.json`). A running
+  bot applies it on its next restart; the [Dashboard](dashboard.md) applies it
+  live instead.
+- **remove** permanently deletes the tool's folder package (or loose `.py`) from
+  the tools dir — including any other tools defined in the same package, which
+  are listed before you confirm. An installed package's `tools.lock.json` entry
+  is cleaned up too. A running bot with hot-reload drops it immediately.
+- **install** fetches packages straight from a GitHub link — see
+  [Installing Tools](installing-tools.md) for specs, pinning, and the trust
+  model.
+
+The same actions are available point-and-click in the [Dashboard](dashboard.md).
+
+---
+
+## 10. Where activity is logged
 
 - `logs/sysbot.log` — plain-text application log (set `-v` for DEBUG detail).
 - `logs/traces.jsonl` — one structured JSON line per request: which tools ran, with what arguments, and how long each step took. Great for debugging. Format is documented in [Configuration → traces](configuration.md#6-traces-log-format).
@@ -205,12 +235,12 @@ Disable either by setting its path to `null` in `config.yaml`.
 
 ---
 
-## 10. Common issues
+## 11. Common issues
 
 | Symptom | Cause & fix |
 |---|---|
 | `LLM unavailable: ...` | The backend isn't reachable. Check Ollama is running (`curl http://localhost:11434/`) and the model is pulled. Slash commands still work without a model. |
-| Bot picked the wrong tool / didn't use one | Smaller models call tools less reliably. Try a stronger model (see [MODELS.md](../MODELS.md)) or call the tool directly with `/`. |
+| Bot picked the wrong tool / didn't use one | Smaller models call tools less reliably. Try a stronger model (see [Models](models.md)) or call the tool directly with `/`. |
 | First reply is slow | The model loads into memory on first use. Subsequent replies are faster. |
 | A tool isn't in `/help` | Make sure its file is in `tools/`, doesn't start with `_`, and check the log for an import error. See [Writing Tools](writing-tools.md). |
 | `model "x" not found` | Pull it first: `ollama pull x`, or fix `llm.model` in `config.yaml`. |
@@ -223,5 +253,7 @@ Disable either by setting its path to `null` in `config.yaml`.
 |---|---|
 | Set up Telegram or Slack | [Messaging Adapters](adapters.md) |
 | Add your own tools | [Writing Tools](writing-tools.md) |
+| Manage tools in a browser | [Dashboard](dashboard.md) |
 | Change models, history, logging | [Configuration](configuration.md) |
-| Run SysBot in the background | [Installation & Service](../SERVICE.md) |
+| Run SysBot in the background | [Running as a Service](service.md) |
+| Understand what happens under the hood | [Architecture](architecture.md) |

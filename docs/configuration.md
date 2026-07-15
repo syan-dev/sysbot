@@ -15,8 +15,28 @@ cp config/default.yaml config.yaml
 SysBot looks for config in this order:
 1. Path given with `-c / --config`
 2. `config.yaml` in the working directory
-3. `config/default.yaml`
-4. Built-in defaults (no file needed)
+3. `~/.sysbot/config.yaml` — the per-user home the installer writes to
+4. `config.yaml` next to the executable (frozen `.exe` builds)
+5. `config/default.yaml`
+6. Built-in defaults (no file needed)
+
+### `~/.sysbot/` — the installed home
+
+`scripts/install.sh` / `install.ps1` write your settings to **`~/.sysbot/config.yaml`**
+and seed **`~/.sysbot/tools/`** there, decoupled from wherever you cloned the source.
+The background service (systemd/launchd/Task Scheduler) runs from this directory, so
+this is the one place to edit and apply settings:
+
+```bash
+$EDITOR ~/.sysbot/config.yaml
+systemctl --user restart sysbot     # Linux  (launchctl kickstart -k … on macOS)
+```
+
+Relative `mcp.tools_dir` (`./tools`) and `logging.file`/`trace_file` (`logs/…`) are
+resolved against the directory the loaded `config.yaml` lives in — so for an installed
+setup they point at `~/.sysbot/tools` and `~/.sysbot/logs`, and for a dev checkout with
+a local `./config.yaml` they stay relative to the repo (unchanged). Set `SYSBOT_HOME`
+to use a directory other than `~/.sysbot`.
 
 ---
 
@@ -58,6 +78,15 @@ agent:
     Be concise and clear.
   max_history: 50            # messages kept per user (system message not counted)
   max_tool_calls: 10         # max LLM → tool → LLM loops per user message
+
+# ── Dashboard ─────────────────────────────────────────────────────────────────
+dashboard:
+  enabled: false             # or run `sysbot --dashboard`; needs `pip install aiohttp`
+  host: "127.0.0.1"          # localhost only, no auth — change deliberately if exposing
+  port: 8765                 # http://localhost:8765
+  state_file: tool_state.json   # persisted disabled tools; anchored like tools_dir → ~/.sysbot/
+
+
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging:
@@ -114,7 +143,8 @@ Environment variables take precedence over `config.yaml`.
 ## 5. CLI flags
 
 ```
-sysbot [-c CONFIG] [-v] [--provider PROVIDER] [--model MODEL] [--base-url URL]
+sysbot [-c CONFIG] [-v] [--provider PROVIDER] [--model MODEL] [--base-url URL] [--dashboard]
+sysbot tools …           # install/list/enable/disable/remove tools — see docs/installing-tools.md
 ```
 
 | Flag | Overrides | Example |
@@ -124,6 +154,7 @@ sysbot [-c CONFIG] [-v] [--provider PROVIDER] [--model MODEL] [--base-url URL]
 | `--provider` | `messaging.provider` | `--provider telegram` |
 | `--model` | `llm.model` | `--model qwen3.5` |
 | `--base-url` | `llm.base_url` | `--base-url http://localhost:8000/v1` |
+| `--dashboard` | `dashboard.enabled` → true | `--dashboard` |
 
 CLI flags take precedence over environment variables and `config.yaml`.
 

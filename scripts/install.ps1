@@ -157,6 +157,12 @@ function Select-OllamaModel {
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoDir   = Split-Path -Parent $ScriptDir
 
+# Per-user data home — one stable place for config, tools and logs, decoupled
+# from wherever the source was cloned. Override with SYSBOT_HOME. The app loads
+# $DataDir\config.yaml by default (see sysbot/core/paths.py: user_dir()).
+$DataDir = if ($env:SYSBOT_HOME) { $env:SYSBOT_HOME } else { Join-Path $HOME ".sysbot" }
+New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+
 Clear-Host
 Write-Host ""
 Hr
@@ -217,11 +223,11 @@ if ($NoService) {
 # 3. SETUP WIZARD
 # ═══════════════════════════════════════════════════════════════════════════════
 $SkipConfig = $false
-$ConfigFile = Join-Path $RepoDir "config.yaml"
+$ConfigFile = Join-Path $DataDir "config.yaml"
 
 if (Test-Path $ConfigFile) {
     Write-Host ""
-    $overwrite = AskYN "config.yaml already exists — overwrite with new settings?" $false
+    $overwrite = AskYN "$ConfigFile already exists — overwrite with new settings?" $false
     if (-not $overwrite) {
         Write-Host "  Keeping existing config.yaml."
         $SkipConfig = $true
@@ -332,8 +338,21 @@ logging:
   file: logs/sysbot.log
   trace_file: logs/traces.jsonl
 "@
+    # tools_dir/logs stay relative — the app anchors them to the config's
+    # directory ($DataDir), so they resolve to $DataDir\tools and $DataDir\logs.
     Set-Content -Path $ConfigFile -Value $config -Encoding UTF8
-    Ok "config.yaml written"
+    Ok "config.yaml written to $ConfigFile"
+}
+
+# Seed the user's tools\ from the bundled set on first install. Don't clobber a
+# tools dir the user has already customised on re-install.
+$DataTools = Join-Path $DataDir "tools"
+$RepoTools = Join-Path $RepoDir "tools"
+if (-not (Test-Path $DataTools) -and (Test-Path $RepoTools)) {
+    Copy-Item -Path $RepoTools -Destination $DataTools -Recurse
+    $pycache = Join-Path $DataTools "__pycache__"
+    if (Test-Path $pycache) { Remove-Item -Path $pycache -Recurse -Force }
+    Ok "tools copied to $DataTools"
 }
 
 # ── Resolve provider ──────────────────────────────────────────────────────────
@@ -377,7 +396,7 @@ if ($NeedsService) {
 }
 Write-Host "  Startup    $startupLabel"
 Write-Host "  Config     $ConfigFile"
-Write-Host "  Working    $RepoDir"
+Write-Host "  Working    $DataDir"
 Write-Host ""
 
 if (-not (AskYN "Apply these settings?" $true)) {
@@ -400,7 +419,7 @@ if ($NeedsService) {
         Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
     }
 
-    $action    = New-ScheduledTaskAction -Execute $SysbotBin -WorkingDirectory $RepoDir
+    $action    = New-ScheduledTaskAction -Execute $SysbotBin -WorkingDirectory $DataDir
     $settings  = New-ScheduledTaskSettingsSet `
         -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
         -ExecutionTimeLimit ([System.TimeSpan]::Zero) `
@@ -428,6 +447,21 @@ if ($NeedsService) {
     Write-Host "    Stop-ScheduledTask  -TaskName 'SysBot'"
     Write-Host "    Start-ScheduledTask -TaskName 'SysBot'"
     Write-Host "  Or open Task Scheduler (taskschd.msc) and find 'SysBot'."
+} else {
+    # Terminal-only: no daemon needed. A Telegram/Slack task from a previous
+    # install would otherwise keep polling in the background with stale settings.
+    $TaskName = "SysBot"
+    if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+        Write-Host ""
+        Warn "A background SysBot task is still installed from a previous setup."
+        if (AskYN "Stop and remove that background service?" $true) {
+            Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+            Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+            Ok "Background service stopped and removed"
+        } else {
+            Warn "Left it in place — it will keep running in the background."
+        }
+    }
 }
 
 # ── How to use ──────────────────────────────────────────────────────────────
@@ -468,14 +502,16 @@ switch ($Provider) {
 
 Write-Host ""
 Write-Host "  Full usage guide:  docs\usage.md"
-Write-Host "  Activity logs:     logs\sysbot.log  and  logs\traces.jsonl"
+Write-Host "  Activity logs:     $DataDir\logs\sysbot.log  and  $DataDir\logs\traces.jsonl"
 
 Hr
 Write-Host ""
 if ($NeedsService) {
     Write-Host "  SysBot is running." -ForegroundColor Green
+    Write-Host "  Edit $ConfigFile, then restart to apply:"
+    Write-Host "    Stop-ScheduledTask -TaskName 'SysBot'; Start-ScheduledTask -TaskName 'SysBot'"
 } else {
     Write-Host "  SysBot is ready." -ForegroundColor Green
+    Write-Host "  Edit $ConfigFile to adjust any settings."
 }
-Write-Host "  Edit $ConfigFile to adjust any settings."
 Write-Host ""

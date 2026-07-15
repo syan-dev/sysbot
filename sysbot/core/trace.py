@@ -19,7 +19,6 @@ class ToolEvent:
     args: dict[str, Any]
     result: str
     duration_ms: float
-    error: str | None = None
 
 
 @dataclass
@@ -62,7 +61,6 @@ class Trace:
                             "args": tc.args,
                             "result": tc.result[:2000],
                             "ms": round(tc.duration_ms, 1),
-                            **({"error": tc.error} if tc.error else {}),
                         }
                         for tc in t.tool_calls
                     ],
@@ -121,10 +119,6 @@ class ActiveTrace:
         self._t0 = time.perf_counter()
         self._turn_t0: float = 0.0
 
-    @property
-    def trace_id(self) -> str:
-        return self._trace.trace_id
-
     def begin_llm(self, message_count: int) -> None:
         index = len(self._trace.turns) + 1
         self._trace.turns.append(
@@ -144,11 +138,10 @@ class ActiveTrace:
         args: dict[str, Any],
         result: str,
         duration_ms: float,
-        error: str | None = None,
     ) -> None:
         if self._trace.turns:
             self._trace.turns[-1].tool_calls.append(
-                ToolEvent(name=name, args=args, result=result, duration_ms=duration_ms, error=error)
+                ToolEvent(name=name, args=args, result=result, duration_ms=duration_ms)
             )
 
     def finish(self, reply: str, error: str | None = None) -> None:

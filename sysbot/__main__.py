@@ -74,11 +74,28 @@ async def _run(settings: Settings) -> None:
     # confirm=True will prompt the user before executing.
     agent.set_confirm_fn(adapter.confirm)
 
-    await adapter.start(agent.handle)
+    # The messaging adapter is the primary service; the dashboard (web UI) runs
+    # as a background task beside it. When the adapter finishes — e.g. the CLI
+    # user types `exit`, or a daemon is cancelled — the background tasks are
+    # cancelled so the process exits cleanly instead of hanging on a
+    # forever-running service.
+    background: list[asyncio.Task] = []
+
+    if settings.dashboard.enabled:
+        from sysbot.dashboard import Dashboard
+        background.append(asyncio.create_task(Dashboard(agent, settings).start()))
+
+    try:
+        await adapter.start(agent.handle)
+    finally:
+        for task in background:
+            task.cancel()
+        if background:
+            await asyncio.gather(*background, return_exceptions=True)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="SysBot — local LLM + tools bot")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="sysbot", description="SysBot — local LLM + tools bot")
     parser.add_argument("-c", "--config", default=None, help="Path to config.yaml")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument(
@@ -89,7 +106,28 @@ def main() -> None:
     )
     parser.add_argument("--model", default=None, help="Override LLM model name")
     parser.add_argument("--base-url", default=None, help="Override LLM base URL")
-    args = parser.parse_args()
+    parser.add_argument(
+        "--dashboard",
+        action="store_true",
+        help="Serve the web dashboard (manage tools, check LLM health) alongside the bot",
+    )
+
+    # Optional subcommands (`sysbot tools …`) — bare `sysbot [flags]` still
+    # runs the bot.
+    from sysbot.mcp.cli import register_subcommands
+
+    subparsers = parser.add_subparsers(dest="command", metavar="{tools}")
+    register_subcommands(subparsers)
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+
+    if getattr(args, "command", None):
+        from sysbot.mcp.cli import run as run_tool_cli
+
+        sys.exit(run_tool_cli(args))
 
     settings = Settings.load(args.config)
     if args.provider:
@@ -98,17 +136,14 @@ def main() -> None:
         settings.llm.model = args.model
     if args.base_url:
         settings.llm.base_url = args.base_url
+    if args.dashboard:
+        settings.dashboard.enabled = True
 
-    # Anchor relative paths to the app directory. For a normal run this is the
-    # current working directory (no change); for a frozen .exe it's the folder
-    # containing the executable, so tools/ and logs/ resolve next to it.
-    from sysbot.core.paths import anchor
+    # Anchor relative tools/log/state paths next to the active config (shared
+    # with the `sysbot tools` CLI so both resolve the same tools dir).
+    from sysbot.core.config import resolve_paths
 
-    settings.mcp.tools_dir = anchor(settings.mcp.tools_dir)
-    if settings.logging.file:
-        settings.logging.file = anchor(settings.logging.file)
-    if settings.logging.trace_file:
-        settings.logging.trace_file = anchor(settings.logging.trace_file)
+    resolve_paths(settings)
 
     _setup_logging(
         args.verbose,

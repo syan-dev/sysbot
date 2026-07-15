@@ -57,8 +57,8 @@ curl http://localhost:11434/
 # should print: Ollama is running
 ```
 
-> Pick a model that fits your hardware in [MODELS.md](../MODELS.md) (by GPU VRAM).
-> Manage the Ollama server itself in [OLLAMA.md](../OLLAMA.md).
+> Pick a model that fits your hardware — and manage it with Ollama — in
+> [Models](models.md).
 
 ---
 
@@ -81,7 +81,7 @@ Now choose **one** of the two paths below.
 |---|---|---|
 | **Effort** | Answer a few prompts | Edit a YAML file yourself |
 | **Config file** | Written for you | You copy and edit it |
-| **Background service** | Optional, set up for you | You set it up later (see [SERVICE.md](../SERVICE.md)) |
+| **Background service** | Optional, set up for you | You set it up later (see [Running as a Service](service.md)) |
 | **Best for** | Most users, first-time setup | Power users, servers, automation |
 | **Go to** | [Section 5](#5-quick-start--guided-installer) | [Section 6](#6-manual-installation--step-by-step) |
 
@@ -114,9 +114,9 @@ Each prompt looks like `?  Question [default]:`. Here is every question you may 
 
 > **Menus are navigable.** For any multiple-choice question (LLM backend, messaging provider, Ollama model) you can move the highlight with the **↑/↓ arrow keys** and press **Enter** to confirm, or just **press the option's number**. The number-based instructions below still apply if you prefer typing. When the installer is run without an interactive terminal (e.g. piped input), it falls back to a plain "type a number" prompt.
 
-#### Q1. "config.yaml already exists — overwrite with new settings?" `[y/N]`
+#### Q1. "~/.sysbot/config.yaml already exists — overwrite with new settings?" `[y/N]`
 
-- **Only appears if** you've installed before and a `config.yaml` is already present.
+- **Only appears if** you've installed before and a `~/.sysbot/config.yaml` is already present.
 - **Type `n` (default)** to keep your existing settings and skip straight to the service step.
 - **Type `y`** to start fresh and re-answer everything.
 - *Why:* protects a config you may have hand-edited from being overwritten by accident.
@@ -203,13 +203,15 @@ Each prompt looks like `?  Question [default]:`. Here is every question you may 
 
 After you confirm, the installer:
 
-1. Writes your answers to **`config.yaml`** in the repo root.
+1. Writes your answers to **`~/.sysbot/config.yaml`** and seeds your tools into **`~/.sysbot/tools/`** (override the location with `SYSBOT_HOME`). This is your stable home, independent of where you cloned the source — edit this file to change settings later.
 2. Installs the **`sysbot`** command.
-3. **For Telegram/Slack only:** installs and starts a **background service** that restarts on failure and (if you chose auto-start) on reboot. For **CLI**, nothing is installed to run in the background — you start a chat with `sysbot --provider cli` when you want it. Re-running the installer **stops and replaces** any existing service (and **restarts** it) so a changed model/provider actually takes effect.
+3. **For Telegram/Slack only:** installs and starts a **background service** (running from `~/.sysbot`) that restarts on failure and (if you chose auto-start) on reboot. For **CLI**, nothing is installed to run in the background — you start a chat with `sysbot --provider cli` when you want it. Re-running the installer **stops and replaces** any existing service (and **restarts** it) so a changed model/provider actually takes effect. If you switch *back* to **Terminal only** and a service from a previous Telegram/Slack install is still present, the wizard asks **"Stop and remove that background service?"** `[Y/n]` — answer `y` so the old bot stops polling in the background; `n` leaves it running.
 
 When it finishes, your bot is configured — and already running if you set up a Telegram/Slack service. Continue to [Section 7](#7-have-your-first-conversation).
 
-> Managing the background service (start/stop/logs) is covered in [SERVICE.md](../SERVICE.md).
+> **To change settings later:** edit `~/.sysbot/config.yaml`, then restart the service to apply — `systemctl --user restart sysbot` (Linux), `launchctl kickstart -k gui/$(id -u)/com.sysbot.sysbot` (macOS), or `Stop-ScheduledTask -TaskName SysBot; Start-ScheduledTask -TaskName SysBot` (Windows). CLI sessions just pick up the new config on next launch.
+
+> Managing the background service (start/stop/logs) is covered in [Running as a Service](service.md).
 
 ---
 
@@ -233,7 +235,7 @@ Verify the command is available:
 sysbot --help
 ```
 
-> If you get "command not found", pip's scripts directory isn't on your `PATH`. See [SERVICE.md](../SERVICE.md#91-sysbot-command-not-found).
+> If you get "command not found", pip's scripts directory isn't on your `PATH`. See [Running as a Service §6](service.md#sysbot-command-not-found).
 
 ### 6.2 Create your config file
 
@@ -310,8 +312,8 @@ Bot: Available commands — use /help to see this list
 /disk_usage <path>
   Check how much free disk space is available at a given path
 
-/ping <host>
-  Ping a host to check connectivity and measure latency
+/fetch_url <url>
+  Fetch the text content of a URL
 ...
 
 You: what's the disk usage of /tmp?
@@ -353,6 +355,11 @@ Bot: Hello, Alice! Nice to meet you.
 
 The tool is available both as a `/command` and through natural language.
 
+> A single `.py` file like this is perfect for quick local tools. To make a tool
+> you can **share / copy-paste** (with a README and cross-platform metadata), put
+> it in its own folder — `tools/hello/tool.py` + `tools/hello/README.md`. See
+> [Writing Tools](writing-tools.md) and the catalog in `tools/README.md`.
+
 ---
 
 ## 9. Wrap a shell command as a tool
@@ -379,14 +386,46 @@ Bot: Filesystem      Size  Used Avail Use% Mounted on
 
 ---
 
-## 10. Next Steps
+## 10. Uninstalling
+
+If you want to remove SysBot later, run the uninstall script for your OS from the cloned repository:
+
+```bash
+# Linux / macOS
+bash scripts/uninstall.sh
+```
+
+```powershell
+# Windows (PowerShell)
+.\scripts\uninstall.ps1
+```
+
+> **Windows execution policy.** As with the installer, if PowerShell blocks the script, run:
+> ```powershell
+> powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
+> ```
+
+The script undoes everything the installer set up, in order:
+
+1. **Stops and removes the background service** (systemd on Linux, launchd on macOS, Task Scheduler on Windows) — skipped with a note if none is installed, e.g. for a Terminal-only setup. On Linux it also offers to disable `loginctl` linger if the installer enabled it.
+2. **Uninstalls the `sysbot` Python package** via pip.
+3. **Asks before deleting `~/.sysbot`** (your config, tools, and logs; the location honours `SYSBOT_HOME`). The default is **No** — keeping it means a later re-install finds your settings and custom tools exactly as you left them. Answer `y` only if you want a completely clean machine.
+
+Both paths (wizard and manual) are covered — if you installed manually and never set up a service, step 1 skips itself and the rest still applies.
+
+---
+
+## 11. Next Steps
 
 | Topic | Where to look |
 |---|---|
 | Use it day to day (chat, slash commands, history) | [Using SysBot](usage.md) |
 | All tool options (`confirm`, type hints, multiple tools per file) | [Writing Tools](writing-tools.md) |
+| Manage tools + check LLM health in a browser | [Dashboard](dashboard.md) |
 | Set up Telegram or Slack in detail | [Messaging Adapters](adapters.md) |
 | Change model, adjust history size, disable logging | [Configuration](configuration.md) |
-| Run as a background service / auto-start on boot | [Installation & Service](../SERVICE.md) |
+| Run as a background service / auto-start on boot | [Running as a Service](service.md) |
 | Ship a standalone `sysbot.exe` to Windows users | [Building a Windows .exe](building-windows-exe.md) |
-| Pick the best model for your hardware | [Model Comparison](../MODELS.md) |
+| Pick the best model for your hardware | [Models](models.md) |
+| Understand how it all works inside | [Architecture](architecture.md) |
+| Contribute a tool, adapter, or fix | [CONTRIBUTING.md](../CONTRIBUTING.md) |

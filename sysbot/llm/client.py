@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any, Callable
 
 from openai import AsyncOpenAI
@@ -22,6 +23,29 @@ class LLMClient:
             api_key=config.api_key,
             timeout=config.timeout,
         )
+
+    async def health(self) -> dict[str, Any]:
+        """Probe the LLM backend with a cheap /models call.
+
+        Returns a dict the dashboard renders: on success
+        {ok, latency_ms, base_url, model, model_available, models}, and on failure
+        {ok: False, error, base_url, model}. Uses a short 5 s timeout (not the long
+        chat timeout) so an unreachable backend fails fast.
+        """
+        base = {"base_url": self._config.base_url, "model": self._config.model}
+        t0 = time.perf_counter()
+        try:
+            result = await self._client.with_options(timeout=5.0).models.list()
+            ids = [m.id for m in getattr(result, "data", [])]
+            return {
+                **base,
+                "ok": True,
+                "latency_ms": round((time.perf_counter() - t0) * 1000, 1),
+                "model_available": self._config.model in ids,
+                "models": ids[:50],
+            }
+        except Exception as e:
+            return {**base, "ok": False, "error": str(e)}
 
     async def chat(
         self,

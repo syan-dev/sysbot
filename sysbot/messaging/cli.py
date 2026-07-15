@@ -120,9 +120,8 @@ class CLIAdapter(MessagingAdapter):
             # rendered Markdown for the answer.
             raw_content = ""       # streamed answer text (may contain <think>…)
             reasoning_stream = ""  # reasoning_content from reasoning-model APIs
-            status_text = "Thinking…"
             finished = False
-            spinner = Spinner("dots", text=Text(status_text, style="cyan"))
+            spinner = Spinner("dots", text=Text("Thinking…", style="cyan"))
 
             def render() -> Group:
                 think, answer = _split_think(raw_content)
@@ -139,8 +138,6 @@ class CLIAdapter(MessagingAdapter):
                 return Group(*parts)
 
             def on_status(msg: str) -> None:
-                nonlocal status_text
-                status_text = msg
                 spinner.update(text=Text(msg, style="cyan"))
                 if self._live is not None:
                     self._live.update(render())

@@ -279,4 +279,6 @@ elif provider == "myplatform":
 ```
 
 and make sure `agent.set_confirm_fn(adapter.confirm)` is called so your
-confirmation UI is used. See [CLAUDE.md](../CLAUDE.md) for the architecture.
+confirmation UI is used. For how the adapter fits into the rest of the system
+see [Architecture](architecture.md); to submit your adapter as a pull request,
+follow [CONTRIBUTING.md §5](../CONTRIBUTING.md#5-contributing-a-messaging-adapter).

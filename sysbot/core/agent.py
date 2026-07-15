@@ -17,6 +17,15 @@ from sysbot.mcp.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+# Returned when the LLM finishes a turn with no tool call and no answer text —
+# e.g. a reasoning model that emits everything into its thinking channel and
+# leaves `content` empty. Without this, `handle()` would return "", which some
+# adapters (Telegram rejects empty messages) silently drop, so the user sees no
+# reply at all.
+_EMPTY_REPLY_FALLBACK = (
+    "I couldn't generate a reply for that — please try rephrasing your question."
+)
+
 
 class Agent:
     """Orchestrates the message → LLM → tools → reply loop."""
@@ -41,7 +50,23 @@ class Agent:
     def set_confirm_fn(self, fn: ConfirmCallback) -> None:
         self._confirm_fn = fn
 
+    @property
+    def registry(self) -> ToolRegistry:
+        return self._registry
+
+    @property
+    def llm(self) -> LLMClient:
+        return self._llm
+
+    @property
+    def settings(self) -> Settings:
+        return self._settings
+
     async def setup(self) -> None:
+        # Wire the persisted enable/disable state before loading tools so disabled
+        # tools are applied from the first request (the dashboard mutates this set).
+        self._registry.set_state_path(self._settings.dashboard.state_file)
+        self._registry.load_state()
         self._registry.load_directory(self._settings.mcp.tools_dir)
         logger.info("Tools loaded: %s", self._registry.names)
 
@@ -109,10 +134,12 @@ class Agent:
                 history.add(response)
 
                 if not response.tool_calls:
+                    content = response.content or ""
+                    reply = content if content.strip() else _EMPTY_REPLY_FALLBACK
                     if trace:
                         trace.end_llm("text")
-                        trace.finish(response.content)
-                    return response.content
+                        trace.finish(reply)
+                    return reply
 
                 if trace:
                     trace.end_llm("tool_calls")
