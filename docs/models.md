@@ -1,8 +1,8 @@
 # Choosing & Managing a Local Model
 
-SysBot relies on **tool calling** (function calling) — the model must support it.
+LeSysBot relies on **tool calling** (function calling) — the model must support it.
 Every model recommended here does. This page helps you pick a model that fits
-your hardware, manage it with Ollama, and point SysBot at it.
+your hardware, manage it with Ollama, and point LeSysBot at it.
 
 Using OpenAI or another remote backend instead? Skip this page — see
 [Configuration §3](configuration.md#3-llm-backends).
@@ -36,7 +36,7 @@ KV cache and OS.
 | 24 GB | Qwen3 32B (`qwen3:32b`) | ~22 GB | Excellent instruction following |
 | 48 GB+ | Qwen3.5 122B (`qwen3.5:122b`) | ~81 GB | Needs 2× 48 GB GPUs or large unified memory |
 
-**Coding-heavy tools?** If your SysBot tools involve writing or reviewing code,
+**Coding-heavy tools?** If your LeSysBot tools involve writing or reviewing code,
 `qwen3-coder:30b` (~18 GB, MoE) is the strongest open coding model;
 `deepseek-coder-v2` (~9 GB) is a good mid-size option.
 
@@ -50,7 +50,7 @@ your budget with the tables above (16 GB RAM → the 8–12 GB tier). Pull the
 
 - **Tool calling quality**: Qwen3.5 and Gemma4 have the most reliable tool
   calling in 2026 — they rarely hallucinate function names or drop required
-  parameters. If SysBot picks the wrong tool or none at all, try one of these
+  parameters. If LeSysBot picks the wrong tool or none at all, try one of these
   before debugging anything else.
 - **MoE models** (e.g. Qwen3-Coder 30B) load fewer active parameters per token —
   faster than their total size suggests.
@@ -73,7 +73,7 @@ ollama pull qwen3.5         # download a model
 ollama rm llama3.2          # delete one
 ollama ps                   # what's loaded in GPU memory right now
 ollama stop qwen3.5         # unload a model, free VRAM
-ollama run qwen3.5          # chat REPL — quick test before wiring into SysBot
+ollama run qwen3.5          # chat REPL — quick test before wiring into LeSysBot
 ```
 
 **Is the server running?**
@@ -91,9 +91,9 @@ address, storage location, keep-alive tuning — see the
 
 ---
 
-## 4. Pointing SysBot at the model
+## 4. Pointing LeSysBot at the model
 
-After pulling a model, set it in `config.yaml` (`~/.sysbot/config.yaml` for an
+After pulling a model, set it in `config.yaml` (`~/.lesysbot/config.yaml` for an
 installed setup):
 
 ```yaml
@@ -106,7 +106,7 @@ llm:
 Or one-off on the command line:
 
 ```bash
-sysbot --provider cli --model qwen3.5
+lesysbot --provider cli --model qwen3.5
 ```
 
 Every backend (Ollama, vLLM, LlamaCpp, OpenAI) uses the same three settings —

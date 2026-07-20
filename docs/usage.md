@@ -1,6 +1,6 @@
-# Using SysBot
+# Using LeSysBot
 
-Once SysBot is installed and running, this guide shows you how to actually use it day to day — chatting, running tools, and the built-in commands.
+Once LeSysBot is installed and running, this guide shows you how to actually use it day to day — chatting, running tools, and the built-in commands.
 
 Everything here works the same in **CLI, Telegram, and Slack**. The examples use the CLI because it needs no setup; for adapter-specific setup (tokens, user IDs) see [Messaging Adapters](adapters.md).
 
@@ -11,31 +11,31 @@ Everything here works the same in **CLI, Telegram, and Slack**. The examples use
 If your `config.yaml` already sets `provider: cli`, just run:
 
 ```bash
-sysbot
+lesysbot
 ```
 
 Or force the CLI explicitly (handy if your config is set to Telegram/Slack):
 
 ```bash
-sysbot --provider cli
+lesysbot --provider cli
 ```
 
 You'll see a banner and a prompt:
 
 ```
-SysBot — local AI assistant with tools
+LeSysBot — local AI assistant with tools
 Type a message to chat, or use /commands directly. Type 'exit' to quit.
 
 You:
 ```
 
-> Already running SysBot as a background service (Telegram/Slack)? You can still open a separate interactive CLI session anytime with `sysbot --provider cli` — they don't conflict.
+> Already running LeSysBot as a background service (Telegram/Slack)? You can still open a separate interactive CLI session anytime with `lesysbot --provider cli` — they don't conflict.
 
 ---
 
 ## 2. Two ways to interact
 
-There are two distinct ways to talk to SysBot, and knowing the difference is the key to using it well:
+There are two distinct ways to talk to LeSysBot, and knowing the difference is the key to using it well:
 
 | | **Natural language** | **Slash command** (`/...`) |
 |---|---|---|
@@ -65,15 +65,15 @@ You: and how much free space is on / ?
 Bot: The root filesystem has 143 GB free out of 980 GB (80% used).
 ```
 
-> The background `httpx`/tool-watcher log lines don't interrupt the chat — they're written to `logs/sysbot.log` instead. Run with `-v` to see them (and DEBUG detail) on screen.
+> The background `httpx`/tool-watcher log lines don't interrupt the chat — they're written to `logs/lesysbot.log` instead. Run with `-v` to see them (and DEBUG detail) on screen.
 
-SysBot **remembers the conversation** within a session, so follow-up questions like "and how much free space…" work without repeating context. See [§7 Conversation history](#7-conversation-history) for the details and limits.
+LeSysBot **remembers the conversation** within a session, so follow-up questions like "and how much free space…" work without repeating context. See [§7 Conversation history](#7-conversation-history) for the details and limits.
 
 ---
 
 ## 4. Built-in commands
 
-These special commands are handled by SysBot itself (not the LLM) and work in every adapter:
+These special commands are handled by LeSysBot itself (not the LLM) and work in every adapter:
 
 | Command | What it does |
 |---|---|
@@ -126,7 +126,7 @@ You: /disk_usage path=/tmp
 You: /search query="weekly report" folder=/docs
 ```
 
-**If you miss a required argument**, SysBot shows you the usage instead of failing:
+**If you miss a required argument**, LeSysBot shows you the usage instead of failing:
 
 ```
 You: /disk_usage
@@ -151,7 +151,7 @@ Available commands — use /help to see this list
 
 ## 6. Confirmation prompts
 
-Some tools are marked to require approval before they run (anything destructive, like deleting files or rebooting). The confirmation guards **LLM-initiated** calls — when the model decides to run such a tool, SysBot asks you first:
+Some tools are marked to require approval before they run (anything destructive, like deleting files or rebooting). The confirmation guards **LLM-initiated** calls — when the model decides to run such a tool, LeSysBot asks you first:
 
 ```
 ⚠ Confirmation required
@@ -169,7 +169,7 @@ Press `y` to run it, anything else to cancel. In **Telegram** this appears as �
 
 ## 7. Conversation history
 
-- SysBot keeps a separate history **per user**, seeded with the system prompt from `config.yaml`.
+- LeSysBot keeps a separate history **per user**, seeded with the system prompt from `config.yaml`.
 - Only **natural-language** messages and the model's replies are stored — slash commands are not.
 - Old messages are trimmed once the history passes `agent.max_history` (default 50); the system prompt is always kept. Tune it in [Configuration](configuration.md).
 - `/history` shows what's currently remembered; `/clear` wipes it and starts over.
@@ -186,13 +186,13 @@ Conversation history cleared.
 You don't have to edit `config.yaml` for a quick change — CLI flags and environment variables override it:
 
 ```bash
-sysbot --model qwen3.5                     # different local model (pull it first)
-sysbot --base-url https://api.openai.com/v1 --model gpt-4o   # talk to OpenAI
-sysbot --provider telegram                 # run as the Telegram bot instead
-SYSBOT_AGENT__MAX_HISTORY=100 sysbot       # env-var override
+lesysbot --model qwen3.5                     # different local model (pull it first)
+lesysbot --base-url https://api.openai.com/v1 --model gpt-4o   # talk to OpenAI
+lesysbot --provider telegram                 # run as the Telegram bot instead
+LESYSBOT_AGENT__MAX_HISTORY=100 lesysbot       # env-var override
 ```
 
-Precedence is **CLI flags → `SYSBOT_*` env vars → `config.yaml`**. The full list of flags and variables is in [Configuration](configuration.md).
+Precedence is **CLI flags → `LESYSBOT_*` env vars → `config.yaml`**. The full list of flags and variables is in [Configuration](configuration.md).
 
 ---
 
@@ -203,12 +203,12 @@ bot needed. The commands act on the same state file and tools directory the bot
 loads, so what you change here is what the bot sees:
 
 ```bash
-sysbot tools install owner/repo  # install tool package(s) from a GitHub repo
-sysbot tools list                # every tool: status, source package, origin
-sysbot tools info gpu_temp       # details: params, platform gating, provenance
-sysbot tools disable gpu_temp    # hide from the LLM; /gpu_temp refuses to run
-sysbot tools enable gpu_temp     # turn it back on
-sysbot tools remove gpu_temp     # DELETE its folder package / .py file (asks y/N)
+lesysbot tools install owner/repo  # install tool package(s) from a GitHub repo
+lesysbot tools list                # every tool: status, source package, origin
+lesysbot tools info gpu_temp       # details: params, platform gating, provenance
+lesysbot tools disable gpu_temp    # hide from the LLM; /gpu_temp refuses to run
+lesysbot tools enable gpu_temp     # turn it back on
+lesysbot tools remove gpu_temp     # DELETE its folder package / .py file (asks y/N)
 ```
 
 - **disable/enable** is reversible and persisted (`tool_state.json`). A running
@@ -228,7 +228,7 @@ The same actions are available point-and-click in the [Dashboard](dashboard.md).
 
 ## 10. Where activity is logged
 
-- `logs/sysbot.log` — plain-text application log (set `-v` for DEBUG detail).
+- `logs/lesysbot.log` — plain-text application log (set `-v` for DEBUG detail).
 - `logs/traces.jsonl` — one structured JSON line per request: which tools ran, with what arguments, and how long each step took. Great for debugging. Format is documented in [Configuration → traces](configuration.md#6-traces-log-format).
 
 Disable either by setting its path to `null` in `config.yaml`.
@@ -255,5 +255,5 @@ Disable either by setting its path to `null` in `config.yaml`.
 | Add your own tools | [Writing Tools](writing-tools.md) |
 | Manage tools in a browser | [Dashboard](dashboard.md) |
 | Change models, history, logging | [Configuration](configuration.md) |
-| Run SysBot in the background | [Running as a Service](service.md) |
+| Run LeSysBot in the background | [Running as a Service](service.md) |
 | Understand what happens under the hood | [Architecture](architecture.md) |

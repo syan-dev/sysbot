@@ -18,5 +18,5 @@ entry. If it's missing, `/fetch_url` tells you to `pip install httpx`. See
 - `/fetch_url <url>` — first ~3000 chars of the response body.
 
 ## Copy-paste
-Drop this `web/` folder into your `~/.sysbot/tools/`, run
-`pip install -r web/requirements.txt`, and restart SysBot.
+Drop this `web/` folder into your `~/.lesysbot/tools/`, run
+`pip install -r web/requirements.txt`, and restart LeSysBot.

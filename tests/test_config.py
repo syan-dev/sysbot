@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sysbot.core.config import Settings, resolve_paths
+from lesysbot.core.config import Settings, resolve_paths
 
 
 def test_defaults() -> None:
@@ -30,8 +30,8 @@ def test_from_yaml(tmp_path: Path) -> None:
 
 
 def test_env_override(monkeypatch) -> None:
-    monkeypatch.setenv("SYSBOT_LLM__MODEL", "from-env")
-    monkeypatch.setenv("SYSBOT_AGENT__MAX_HISTORY", "123")
+    monkeypatch.setenv("LESYSBOT_LLM__MODEL", "from-env")
+    monkeypatch.setenv("LESYSBOT_AGENT__MAX_HISTORY", "123")
     s = Settings()
     assert s.llm.model == "from-env"
     assert s.agent.max_history == 123
@@ -40,6 +40,49 @@ def test_env_override(monkeypatch) -> None:
 def test_missing_yaml_uses_defaults(tmp_path: Path) -> None:
     s = Settings.from_yaml(tmp_path / "does-not-exist.yaml")
     assert s.llm.model == "llama3.2"
+
+
+def test_bundled_default_does_not_anchor_paths_to_itself(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A fresh checkout must find `<repo>/tools`, not `<repo>/config/tools`.
+
+    `config/default.yaml` ships with the package rather than being a config the
+    user edits, so it supplies values but leaves `config_dir` None — relative
+    paths then anchor to app_dir() (the CWD) like the built-in defaults do.
+    """
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "default.yaml").write_text("llm:\n  model: bundled\n")
+    (tmp_path / "tools").mkdir()
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / "no-home"))
+    monkeypatch.chdir(tmp_path)
+
+    s = Settings.load()
+    assert s.llm.model == "bundled"          # values still come from the file
+    assert s.config_dir is None              # but it is not a user config dir
+
+    resolve_paths(s)
+    assert Path(s.mcp.tools_dir) == tmp_path / "tools"
+    assert Path(s.mcp.tools_dir).is_dir()
+
+
+def test_user_config_still_anchors_next_to_itself(tmp_path: Path, monkeypatch) -> None:
+    """A real config.yaml keeps winning over the bundled defaults, and its
+    directory is what relative paths resolve against."""
+    home = tmp_path / "home"
+    (home / "tools").mkdir(parents=True)
+    (home / "config.yaml").write_text("llm:\n  model: mine\n")
+    (tmp_path / "config").mkdir()
+    (tmp_path / "config" / "default.yaml").write_text("llm:\n  model: bundled\n")
+    monkeypatch.setenv("LESYSBOT_HOME", str(home))
+    monkeypatch.chdir(tmp_path)
+
+    s = Settings.load()
+    assert s.llm.model == "mine"
+    assert s.config_dir == home.resolve()
+
+    resolve_paths(s)
+    assert Path(s.mcp.tools_dir) == home / "tools"
 
 
 def test_config_dir_tracks_source(tmp_path: Path) -> None:
@@ -53,7 +96,7 @@ def test_config_dir_tracks_source(tmp_path: Path) -> None:
 
 def test_resolve_paths_anchors_to_config_dir(tmp_path: Path) -> None:
     # Relative tools/log/state paths anchor next to the loaded config — the
-    # `sysbot tools` CLI and the bot must resolve the exact same locations.
+    # `lesysbot tools` CLI and the bot must resolve the exact same locations.
     cfg = tmp_path / "config.yaml"
     cfg.write_text("llm:\n  model: qwen3.5\n")
     s = Settings.from_yaml(cfg)
@@ -64,14 +107,52 @@ def test_resolve_paths_anchors_to_config_dir(tmp_path: Path) -> None:
 
 
 def test_load_picks_up_user_dir(tmp_path: Path, monkeypatch) -> None:
-    # SYSBOT_HOME points user_dir() at a temp dir holding config.yaml; with no
+    # LESYSBOT_HOME points user_dir() at a temp dir holding config.yaml; with no
     # cwd config.yaml and no explicit -c, load() should resolve it from there.
-    home = tmp_path / ".sysbot"
+    home = tmp_path / ".lesysbot"
     home.mkdir()
     (home / "config.yaml").write_text("llm:\n  model: from-user-dir\n")
-    monkeypatch.setenv("SYSBOT_HOME", str(home))
+    monkeypatch.setenv("LESYSBOT_HOME", str(home))
     monkeypatch.chdir(tmp_path)  # tmp_path has no config.yaml of its own
 
     s = Settings.load()
     assert s.llm.model == "from-user-dir"
     assert s.config_dir == home.resolve()
+
+
+def test_env_var_expansion(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("LESYSBOT_TEST_TOKEN", "123:abc")
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("messaging:\n  telegram:\n    token: ${LESYSBOT_TEST_TOKEN}\n")
+    s = Settings.from_yaml(cfg)
+    assert s.messaging.telegram.token == "123:abc"
+
+
+def test_env_expansion_inside_larger_string(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("LESYSBOT_TEST_HOSTNAME", "myhost")
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("llm:\n  base_url: http://${LESYSBOT_TEST_HOSTNAME}:11434/v1\n")
+    s = Settings.from_yaml(cfg)
+    assert s.llm.base_url == "http://myhost:11434/v1"
+
+
+def test_unset_env_var_kept_literal_with_warning(tmp_path: Path, monkeypatch, caplog) -> None:
+    monkeypatch.delenv("LESYSBOT_TEST_UNSET", raising=False)
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("llm:\n  api_key: ${LESYSBOT_TEST_UNSET}\n")
+    with caplog.at_level("WARNING"):
+        s = Settings.from_yaml(cfg)
+    assert s.llm.api_key == "${LESYSBOT_TEST_UNSET}"
+    assert "LESYSBOT_TEST_UNSET" in caplog.text
+
+
+def test_env_overrides_yaml_file(tmp_path: Path, monkeypatch) -> None:
+    """LESYSBOT_ env vars must beat the config file — from_yaml goes through
+    __init__ so the env source applies, ranked above the file's data."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("llm:\n  model: from-file\n  temperature: 0.5\n")
+    monkeypatch.setenv("LESYSBOT_LLM__MODEL", "from-env")
+    s = Settings.from_yaml(cfg)
+    assert s.llm.model == "from-env"
+    # sibling keys from the file survive the env deep-merge
+    assert s.llm.temperature == 0.5

@@ -5,7 +5,7 @@ Pure-Python (stdlib only), so it runs on every OS with no extra dependencies.
 import platform
 import shutil
 
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 
 @tool

@@ -6,7 +6,7 @@ of failing. Call it in chat or directly with `/gpu_temp`.
 """
 import asyncio
 
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 
 @tool(

@@ -22,4 +22,4 @@ so they run in a worker thread to keep the bot responsive. A larger `size_mb`
 gives a steadier reading on fast links but takes longer.
 
 ## Copy-paste
-Drop this `speedtest/` folder into your `~/.sysbot/tools/` and restart SysBot.
+Drop this `speedtest/` folder into your `~/.lesysbot/tools/` and restart LeSysBot.

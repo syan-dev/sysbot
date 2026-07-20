@@ -14,13 +14,13 @@ import asyncio
 import time
 import urllib.request
 
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 _DOWN_URL = "https://speed.cloudflare.com/__down?bytes={bytes}"
 _PING_URL = "https://speed.cloudflare.com/__down?bytes=0"
 _TIMEOUT = 30.0  # seconds per HTTP request
 # Cloudflare 403s the default "Python-urllib/x.y" User-Agent, so present a normal one.
-_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SysBot/1.0; +speedtest)"}
+_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; LeSysBot/1.0; +speedtest)"}
 
 
 def _open(url: str):

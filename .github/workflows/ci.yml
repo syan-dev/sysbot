@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: pip install -e ".[dev]"   # dev pulls [all]: telegram, slack, dashboard
+      - name: Lint
+        run: ruff check lesysbot/ tests/ tools/
+      - name: Test
+        run: pytest
+      - name: CLI smoke test
+        run: |
+          lesysbot --help
+          lesysbot tools list
+
+  base-install:
+    name: Base install (no extras)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Chat platforms and the dashboard are extras; the CLI, the tool registry
+      # and the `tools`/`setup` subcommands must work without any of them.
+      - name: Install without extras
+        run: pip install .
+      - name: Assert extras really are absent
+        run: |
+          python - <<'PY'
+          import importlib.util as u
+          for mod in ("telegram", "slack_bolt", "aiohttp"):
+              assert u.find_spec(mod) is None, f"{mod} leaked into the base install"
+          PY
+      - name: CLI smoke test
+        run: |
+          lesysbot --help
+          lesysbot tools list
+
+  powershell-lint:
+    name: PowerShell script analysis
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          Invoke-ScriptAnalyzer -Path scripts/ -Severity Error -EnableExit
+
+  shell-lint:
+    name: Shell script analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck --severity=error scripts/*.sh

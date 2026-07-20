@@ -1,7 +1,7 @@
 import pytest
 
-from sysbot.install.errors import SpecError
-from sysbot.install.spec import ToolSource, parse_source
+from lesysbot.install.errors import SpecError
+from lesysbot.install.spec import ToolSource, parse_source
 
 
 @pytest.mark.parametrize(

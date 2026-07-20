@@ -1,4 +1,4 @@
-"""Tool source mapping + removal (dashboard Remove / `sysbot tool remove`)."""
+"""Tool source mapping + removal (dashboard Remove / `lesysbot tool remove`)."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from sysbot.mcp.registry import ToolRegistry
+from lesysbot.mcp.registry import ToolRegistry
 
 PKG_TOOL = '''
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 @tool(description="alpha")
 async def alpha() -> str:
@@ -22,7 +22,7 @@ async def beta() -> str:
 '''
 
 LOOSE_TOOL = '''
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 @tool(description="gamma")
 async def gamma() -> str:

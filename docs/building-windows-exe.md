@@ -1,7 +1,7 @@
 # Building a Windows Executable
 
-This guide is for **developers/maintainers** who want to ship SysBot to end users
-as a standalone `sysbot.exe` — no Python install, no `pip`, no terminal knowledge
+This guide is for **developers/maintainers** who want to ship LeSysBot to end users
+as a standalone `lesysbot.exe` — no Python install, no `pip`, no terminal knowledge
 required. The end user unzips a folder, edits `config.yaml`, and double-clicks the exe.
 
 It uses [PyInstaller](https://pyinstaller.org) to freeze the app and its
@@ -14,8 +14,8 @@ dependencies into a self-contained bundle.
 The build produces a folder like this, plus a matching `.zip` to hand out:
 
 ```
-SysBot\
-├─ sysbot.exe          ← double-click or run from a terminal
+LeSysBot\
+├─ lesysbot.exe          ← double-click or run from a terminal
 ├─ config.yaml         ← end user edits this (model, provider, tokens)
 ├─ tools\              ← drop-in tool packages (editable without rebuilding)
 │  ├─ system-info\     ← each folder is a self-contained tool (README + tool.py)
@@ -25,7 +25,7 @@ SysBot\
 └─ _internal\          ← bundled Python runtime + libraries (don't touch)
 ```
 
-`sysbot.exe` reads `config.yaml` and the `tools\` folder **from the directory it
+`lesysbot.exe` reads `config.yaml` and the `tools\` folder **from the directory it
 lives in**, so the package is fully relocatable — the user can drop it anywhere.
 
 ---
@@ -38,7 +38,7 @@ You build the Windows exe **on Windows** (PyInstaller is not a cross-compiler).
 |---|---|
 | Windows 10/11 x64 | Build on the oldest Windows you intend to support |
 | Python 3.11+ | From [python.org](https://python.org), "Add to PATH" checked |
-| Git checkout of this repo | `git clone … && cd sysbot` |
+| Git checkout of this repo | `git clone … && cd lesysbot` |
 | ~1.5 GB free disk | For the build venv and artifacts |
 
 > **Architecture note:** the exe matches the Python you build with. Use 64-bit
@@ -65,14 +65,14 @@ The script is self-contained — it creates an isolated build virtualenv
 assembles the shippable folder and zip:
 
 ```
-dist\SysBot\                          ← the folder above
-dist\SysBot-0.1.0-windows-x64.zip     ← zip to distribute
+dist\LeSysBot\                          ← the folder above
+dist\LeSysBot-0.1.0-windows-x64.zip     ← zip to distribute
 ```
 
 Test it before shipping:
 
 ```powershell
-dist\SysBot\sysbot.exe --provider cli
+dist\LeSysBot\lesysbot.exe --provider cli
 ```
 
 ---
@@ -82,7 +82,7 @@ dist\SysBot\sysbot.exe --provider cli
 | Command | Result |
 |---|---|
 | `.\scripts\build-exe.ps1` | One-folder build (recommended) — fast startup, all providers |
-| `.\scripts\build-exe.ps1 -OneFile` | A single `sysbot.exe` (slower startup, easier to email) |
+| `.\scripts\build-exe.ps1 -OneFile` | A single `lesysbot.exe` (slower startup, easier to email) |
 | `.\scripts\build-exe.ps1 -SkipProviders` | Smaller CLI-only exe (no Telegram/Slack bundled) |
 | `.\scripts\build-exe.ps1 -Clean` | Wipe `build\`, `dist\`, `.build-venv\` first |
 
@@ -99,19 +99,19 @@ dist\SysBot\sysbot.exe --provider cli
 ## 5. How the exe finds config and tools
 
 A frozen build resolves its working files relative to the **executable location**
-(`sysbot/core/paths.py::app_dir`), not the current directory. Lookup order for
+(`lesysbot/core/paths.py::app_dir`), not the current directory. Lookup order for
 config:
 
 1. `--config <path>` if passed on the command line
 2. `config.yaml` in the current working directory
-3. `config.yaml` next to `sysbot.exe`  ← the normal case for end users
+3. `config.yaml` next to `lesysbot.exe`  ← the normal case for end users
 4. built-in defaults (Ollama on `localhost:11434`)
 
 `logs\` and the `tools\` folder are likewise created/read next to the exe. This
 means the package keeps working no matter where the user moves it or how they
 launch it (double-click, shortcut, or terminal).
 
-> **Tip:** Ship the exe in a **user-writable** location (e.g. `C:\Users\<name>\SysBot`
+> **Tip:** Ship the exe in a **user-writable** location (e.g. `C:\Users\<name>\LeSysBot`
 > or the Desktop), not `C:\Program Files`. The app writes `logs\` next to itself,
 > which fails under `Program Files` without admin rights.
 
@@ -131,8 +131,8 @@ example `web_search` tool). To support tools that need more:
    the spec's bundling list:
 
    ```python
-   # packaging/sysbot.spec
-   for _pkg in ("sysbot", "openai", "pydantic", ..., "pandas"):
+   # packaging/lesysbot.spec
+   for _pkg in ("lesysbot", "openai", "pydantic", ..., "pandas"):
        _bundle(_pkg)
    ```
 
@@ -146,14 +146,14 @@ distribution (see [Getting Started](getting-started.md)) over a frozen exe.
 ## 7. Production checklist
 
 - [ ] **Version stamp** — bump `version` in `pyproject.toml` and
-      `sysbot/__init__.py`; the build script names the zip from `sysbot.__version__`.
+      `lesysbot/__init__.py`; the build script names the zip from `lesysbot.__version__`.
 - [ ] **Icon** — add an `.ico` and set `icon="path\\to\\app.ico"` in both `EXE(...)`
-      blocks of `packaging/sysbot.spec`.
+      blocks of `packaging/lesysbot.spec`.
 - [ ] **Code signing** — unsigned exes trigger SmartScreen ("Windows protected your
       PC") and many AV products. For real distribution, sign with an Authenticode
       certificate:
       ```powershell
-      signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 dist\SysBot\sysbot.exe
+      signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com /td SHA256 dist\LeSysBot\lesysbot.exe
       ```
 - [ ] **Antivirus false positives** — PyInstaller exes are sometimes flagged. Signing
       helps; you can also submit the binary to vendors for whitelisting. Avoid UPX
@@ -162,7 +162,7 @@ distribution (see [Getting Started](getting-started.md)) over a frozen exe.
       bundled dependencies.
 - [ ] **Auto-start as a service** — to run the exe in the background / at login, use
       Task Scheduler or NSSM as described in [Running as a Service](service.md). Point the
-      service at `dist\SysBot\sysbot.exe` with its folder as the working directory.
+      service at `dist\LeSysBot\lesysbot.exe` with its folder as the working directory.
 
 ---
 
@@ -178,21 +178,21 @@ python -m venv .build-venv
 # 2. Install the app + build tooling
 pip install --upgrade pip
 pip install .
-pip install pyinstaller aiohttp httpx
+pip install ".[all]" pyinstaller httpx
 
 # 3. Freeze (one-folder)
-pyinstaller --noconfirm --clean packaging\sysbot.spec
+pyinstaller --noconfirm --clean packaging\lesysbot.spec
 
 # 4. Assemble the package
-Copy-Item config\default.yaml dist\sysbot\config.yaml
-Copy-Item tools dist\sysbot\tools -Recurse
+Copy-Item config\default.yaml dist\lesysbot\config.yaml
+Copy-Item tools dist\lesysbot\tools -Recurse
 ```
 
 For a single-file exe instead:
 
 ```powershell
-$env:SYSBOT_BUILD_ONEFILE = "1"
-pyinstaller --noconfirm --clean packaging\sysbot.spec
+$env:LESYSBOT_BUILD_ONEFILE = "1"
+pyinstaller --noconfirm --clean packaging\lesysbot.spec
 ```
 
 ---
@@ -201,10 +201,10 @@ pyinstaller --noconfirm --clean packaging\sysbot.spec
 
 | Symptom | Fix |
 |---|---|
-| `ModuleNotFoundError` at runtime | The dependency wasn't bundled. Add it to the `_bundle(...)` list in `packaging/sysbot.spec` (or install it into the build venv) and rebuild. |
+| `ModuleNotFoundError` at runtime | The dependency wasn't bundled. Add it to the `_bundle(...)` list in `packaging/lesysbot.spec` (or install it into the build venv) and rebuild. |
 | Telegram/Slack provider fails on a `-SkipProviders` build | That build is CLI-only by design. Rebuild without `-SkipProviders`. |
 | "Windows protected your PC" (SmartScreen) | Expected for unsigned exes. Click *More info → Run anyway*, or sign the binary (§7). |
-| Antivirus quarantines `sysbot.exe` | Common PyInstaller false positive. Sign the binary and/or submit for whitelisting; ensure UPX is off (it is, in the spec). |
+| Antivirus quarantines `lesysbot.exe` | Common PyInstaller false positive. Sign the binary and/or submit for whitelisting; ensure UPX is off (it is, in the spec). |
 | Exe can't write `logs\` | It's in a read-only location like `Program Files`. Move the folder somewhere user-writable, or set `logging.file: null` in `config.yaml`. |
 | Build is huge | Use `-SkipProviders` for a CLI-only exe, or trim the optional packages in the spec. |
 | `pyinstaller` not found | Activate `.build-venv` first, or run `python -m PyInstaller …`. |
@@ -214,10 +214,10 @@ pyinstaller --noconfirm --clean packaging\sysbot.spec
 ## 10. What gets built (under the hood)
 
 - `packaging/entry.py` — the script PyInstaller freezes; it just calls
-  `sysbot.__main__:main`.
-- `packaging/sysbot.spec` — collects the package and its dependencies, bundles
+  `lesysbot.__main__:main`.
+- `packaging/lesysbot.spec` — collects the package and its dependencies, bundles
   optional providers when present, and emits either a one-folder or one-file build.
 - `scripts/build-exe.ps1` — orchestrates the venv, the build, and packaging the
   shippable folder + zip.
-- `sysbot/core/paths.py` — makes the frozen exe resolve `config.yaml`, `tools\`
+- `lesysbot/core/paths.py` — makes the frozen exe resolve `config.yaml`, `tools\`
   and `logs\` next to the executable.

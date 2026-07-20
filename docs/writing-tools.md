@@ -1,6 +1,6 @@
 # Writing Tools
 
-Tools are the heart of SysBot. The recommended form is a **folder package** — a
+Tools are the heart of LeSysBot. The recommended form is a **folder package** — a
 self-contained, copy-paste-shareable tool, like a Claude Skill:
 
 ```
@@ -12,15 +12,15 @@ tools/
     requirements.txt        # OPTIONAL pip deps
 ```
 
-Drop a folder into `tools/` (or `~/.sysbot/tools/` for an installed setup) and it
+Drop a folder into `tools/` (or `~/.lesysbot/tools/` for an installed setup) and it
 auto-registers — no edits anywhere else. With `hot_reload: true` (the default),
 changes take effect the moment you save.
 
-The same folder shape is what `sysbot tools install owner/repo` downloads from
+The same folder shape is what `lesysbot tools install owner/repo` downloads from
 GitHub — push a package to a repo and anyone can install it (see
 [installing-tools.md](installing-tools.md), and [sharing-tools.md](sharing-tools.md) for
 sharing yours). The README frontmatter takes an optional `version: "1.0.0"`
-field that `sysbot tools list/info` displays and records; bump it when you tag releases.
+field that `lesysbot tools list/info` displays and records; bump it when you tag releases.
 
 A **loose `.py` file** dropped straight into `tools/` also still works (default:
 all OSes, no requirements) — handy for quick local tools. Files starting with `_`
@@ -37,7 +37,7 @@ Use `@tool` for any logic you want to write in Python:
 
 ```python
 # tools/weather.py
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 @tool(description="Get the current weather for a city")
 async def get_weather(city: str, units: str = "metric") -> str:
@@ -45,7 +45,7 @@ async def get_weather(city: str, units: str = "metric") -> str:
     return f"Sunny, 25°C in {city}"
 ```
 
-That's it. SysBot builds the JSON schema from the type hints automatically.
+That's it. LeSysBot builds the JSON schema from the type hints automatically.
 
 ### 1.1 Options
 
@@ -80,7 +80,7 @@ Use `CLITool` to wrap any shell command as a tool without writing Python logic:
 
 ```python
 # tools/network.py
-from sysbot.mcp import CLITool
+from lesysbot.mcp import CLITool
 
 ping = CLITool(
     name="ping",
@@ -104,11 +104,33 @@ Parameters in `command` use Python's `str.format()` syntax — `{name}` is repla
 | `platforms` | `None` | OSes this runs on, e.g. `["linux", "macos"]` (None = all) |
 | `requires` | `None` | Executables that must be on PATH, e.g. `["traceroute"]` |
 
+### Per-OS command variants
+
+When the same tool needs different syntax on different OSes, pass `command` as
+a dict keyed by OS name (`linux` | `macos` | `windows`). LeSysBot runs the
+variant matching the current OS, and — unless you set `platforms` yourself —
+derives `platforms` from the dict's keys, so the tool gates itself off on any
+OS it has no command for:
+
+```python
+ping = CLITool(
+    name="ping",
+    description="Check if a host is reachable and measure latency",
+    command={
+        "linux": "ping -c 3 {host}",
+        "macos": "ping -c 3 {host}",
+        "windows": "ping -n 3 {host}",
+    },
+    params={"host": "Hostname or IP address to ping"},
+    timeout=15.0,
+)
+```
+
 ---
 
 ## 3. Requiring confirmation
 
-Mark any tool with `confirm` to make SysBot ask for approval before it runs:
+Mark any tool with `confirm` to make LeSysBot ask for approval before it runs:
 
 ```python
 @tool(
@@ -164,7 +186,7 @@ A single file can define as many tools as you like:
 
 ```python
 # tools/system.py
-from sysbot.mcp import tool, CLITool
+from lesysbot.mcp import tool, CLITool
 import platform, shutil
 
 @tool
@@ -213,7 +235,7 @@ def format_bytes(n: int) -> str:
 ```python
 # tools/storage.py
 from _helpers import format_bytes
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 ```
 
 A plain `from _helpers import ...` works: for a loose-file layout the `tools/`
@@ -226,8 +248,8 @@ Editing `_helpers.py` also triggers a hot reload.
 
 ## 6. Cross-platform support
 
-SysBot runs on Linux, macOS, and Windows, but not every tool can run everywhere.
-Declare what a tool needs and SysBot gates it gracefully:
+LeSysBot runs on Linux, macOS, and Windows, but not every tool can run everywhere.
+Declare what a tool needs and LeSysBot gates it gracefully:
 
 - `platforms` — the OSes a tool runs on, from `{"linux", "macos", "windows"}`.
   Omit it (the default) to mean **all** OSes.
@@ -261,14 +283,14 @@ doesn't disable its siblings.
 > a helpful message (see `tools/web/tool.py`), and list it in the package's
 > `requirements.txt`.
 
-The decorator/`CLITool` args are what SysBot enforces; mirror them in your
+The decorator/`CLITool` args are what LeSysBot enforces; mirror them in your
 package `README.md` frontmatter for humans and the catalog.
 
 ---
 
 ## 7. Hot reload
 
-When `mcp.hot_reload: true` (the default), SysBot watches `tools/` for file changes and reloads all tools automatically. You'll see a log line like:
+When `mcp.hot_reload: true` (the default), LeSysBot watches `tools/` for file changes and reloads all tools automatically. You'll see a log line like:
 
 ```
 Tool files changed — reloading...

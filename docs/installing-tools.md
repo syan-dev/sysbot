@@ -4,29 +4,29 @@ Any GitHub repo that contains a tool folder package can be installed with one
 command — no registry, no catalog, just the link:
 
 ```bash
-sysbot tools install owner/repo                 # whole repo
-sysbot tools install owner/repo/tools/gpu-temp  # one package inside a bigger repo
-sysbot tools install owner/repo@v1.2            # pin a branch, tag, or commit
-sysbot tools install https://github.com/owner/repo
+lesysbot tools install owner/repo                 # whole repo
+lesysbot tools install owner/repo/tools/gpu-temp  # one package inside a bigger repo
+lesysbot tools install owner/repo@v1.2            # pin a branch, tag, or commit
+lesysbot tools install https://github.com/owner/repo
 ```
 
-SysBot downloads the repo as a zip (no git needed), shows you what it found —
+LeSysBot downloads the repo as a zip (no git needed), shows you what it found —
 package names, versions, files — and asks for confirmation before anything is
-written. Installed packages land in your tools dir (`~/.sysbot/tools/` for an
+written. Installed packages land in your tools dir (`~/.lesysbot/tools/` for an
 installed setup); a running bot with hot-reload picks them up immediately.
 
 ## Manage what's installed
 
 ```bash
-sysbot tools list             # every tool: status, source package, install origin
-sysbot tools info gpu_temp    # params, gating, and where it was installed from
-sysbot tools enable/disable gpu_temp
-sysbot tools remove gpu_temp  # deletes the package (asks y/N)
+lesysbot tools list             # every tool: status, source package, install origin
+lesysbot tools info gpu_temp    # params, gating, and where it was installed from
+lesysbot tools enable/disable gpu_temp
+lesysbot tools remove gpu_temp  # deletes the package (asks y/N)
 ```
 
 `list`/`info` show provenance for installed packages (`acme/repo@commit`);
 tools you wrote yourself just say `local`. See
-[Using SysBot §9](usage.md#9-managing-tools-enable--disable--remove) for the
+[Using LeSysBot §9](usage.md#9-managing-tools-enable--disable--remove) for the
 management commands and the [Dashboard](dashboard.md) for the point-and-click
 equivalent.
 
@@ -49,7 +49,9 @@ Branch names containing `/` are ambiguous in `/tree/` URLs — use the
 - **Repo root holds `tool.py`** (any non-`_` `.py`): the repo *is* one package,
   named after the repo.
 - **Otherwise**: every immediate subdirectory that holds a non-`_` `.py` file is
-  a package (`tests/`, `docs/`, dot- and `_`-prefixed dirs are skipped). Install
+  a package — looked for under `tools/` first when the repo has that folder
+  (the layout of the official collections and the core repo), else at the repo
+  root (`tests/`, `docs/`, dot- and `_`-prefixed dirs are skipped). Install
   just one of them with `--only NAME` (repeatable), or point the spec at its
   subdir.
 
@@ -66,7 +68,7 @@ the bot loads them. There is no sandbox. Before confirming an install:
 
 ## Python dependencies
 
-If a package ships a `requirements.txt`, SysBot **prints** the
+If a package ships a `requirements.txt`, LeSysBot **prints** the
 `pip install -r …` command instead of running it. Opt in with
 `--install-deps` to run it automatically.
 
@@ -75,7 +77,7 @@ If a package ships a `requirements.txt`, SysBot **prints** the
 Set `GITHUB_TOKEN` (or `GH_TOKEN`) and it is sent as a Bearer token:
 
 ```bash
-GITHUB_TOKEN=ghp_… sysbot tools install you/private-tools
+GITHUB_TOKEN=ghp_… lesysbot tools install you/private-tools
 ```
 
 ## Collisions & local tools
@@ -92,14 +94,14 @@ mcp:
   lock_file: tools.lock.json    # install provenance (repo, pinned commit)
 ```
 
-Both anchor next to the active `config.yaml` (so `~/.sysbot/` when installed) —
-`sysbot tools install` and the bot always resolve the same locations.
+Both anchor next to the active `config.yaml` (so `~/.lesysbot/` when installed) —
+`lesysbot tools install` and the bot always resolve the same locations.
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
 | `Not found: owner/repo@ref` | Check the spec; for private repos set `GITHUB_TOKEN`. |
-| `tools dir already has X` | That folder wasn't installed by SysBot — `--force` to overwrite it. |
+| `tools dir already has X` | That folder wasn't installed by LeSysBot — `--force` to overwrite it. |
 | Installed but not in `/help` | Restart the bot if `hot_reload` is off; check the log for import errors. |
 | Tool needs a pip package | Re-run with `--install-deps`, or run the printed `pip install -r` line. |

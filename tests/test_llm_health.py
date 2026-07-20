@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from sysbot.core.config import LLMConfig
-from sysbot.llm.client import LLMClient
+from lesysbot.core.config import LLMConfig
+from lesysbot.llm.client import LLMClient
 
 
 class _Model:

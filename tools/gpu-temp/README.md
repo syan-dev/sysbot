@@ -17,4 +17,4 @@ returns a short explanation instead of running.
 - `/gpu_temp` — e.g. `GPU0: 47°C, GPU1: 51°C`.
 
 ## Copy-paste
-Drop this `gpu-temp/` folder into your `~/.sysbot/tools/` and restart SysBot.
+Drop this `gpu-temp/` folder into your `~/.lesysbot/tools/` and restart LeSysBot.

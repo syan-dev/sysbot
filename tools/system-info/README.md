@@ -15,4 +15,4 @@ Pure-Python system inspection — works everywhere, no external dependencies.
 - `/disk_usage <path>` — total / free / used% for the filesystem at `<path>`.
 
 ## Copy-paste
-Drop this `system-info/` folder into your `~/.sysbot/tools/` and restart SysBot.
+Drop this `system-info/` folder into your `~/.lesysbot/tools/` and restart LeSysBot.

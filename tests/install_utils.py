@@ -11,7 +11,7 @@ from __future__ import annotations
 import io
 import zipfile
 
-from sysbot.install.errors import FetchError
+from lesysbot.install.errors import FetchError
 
 SHA = "0123456789abcdef0123456789abcdef01234567"
 
@@ -42,7 +42,7 @@ class FakeFetcher:
 
 
 TOOL_PY = """\
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 
 @tool(description="Say hello")

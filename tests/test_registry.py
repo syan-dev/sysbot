@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from sysbot.mcp.registry import ToolRegistry
+from lesysbot.mcp.registry import ToolRegistry
 
 
 def _write_tools(tmp_path: Path, **files: str) -> Path:
@@ -31,7 +31,7 @@ def test_tool_discovery(tmp_path: Path) -> None:
         tmp_path,
         **{
             "good.py": """
-                from sysbot.mcp import tool, CLITool
+                from lesysbot.mcp import tool, CLITool
 
                 @tool(description="echo")
                 async def echo(text: str) -> str:
@@ -41,7 +41,7 @@ def test_tool_discovery(tmp_path: Path) -> None:
                                params={"host": "h"})
             """,
             "_ignored.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def hidden() -> str:
@@ -63,7 +63,7 @@ async def test_call_tool(tmp_path: Path) -> None:
         tmp_path,
         **{
             "t.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def add(a: int, b: int) -> int:
@@ -91,7 +91,7 @@ def test_helper_import(tmp_path: Path) -> None:
             "_helpers.py": "VALUE = 'shared'\n",
             "uses_helper.py": """
                 from _helpers import VALUE
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def get() -> str:
@@ -113,7 +113,7 @@ async def test_helper_hot_reload(tmp_path: Path) -> None:
             "_v.py": "VERSION = 'v1'\n",
             "ver.py": """
                 from _v import VERSION
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def ver() -> str:
@@ -142,7 +142,7 @@ async def test_helper_hot_reload(tmp_path: Path) -> None:
 async def test_platform_gating(tmp_path: Path) -> None:
     """A tool not supported on the current OS registers but stubs its call;
     a tool that allows the current OS runs normally."""
-    from sysbot.mcp.platform import current_os
+    from lesysbot.mcp.platform import current_os
 
     here = current_os()
     other = "windows" if here != "windows" else "linux"
@@ -150,7 +150,7 @@ async def test_platform_gating(tmp_path: Path) -> None:
         tmp_path,
         **{
             "t.py": f"""
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool(platforms=["{other}"])
                 async def only_other() -> str:
@@ -183,7 +183,7 @@ async def test_missing_bin_stub(tmp_path: Path) -> None:
         tmp_path,
         **{
             "t.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool(requires=["definitely-not-a-real-binary-xyz"])
                 async def needs_bin() -> str:
@@ -209,7 +209,7 @@ async def test_folder_package_loads(tmp_path: Path) -> None:
         **{
             "README.md": "---\nname: greeter\n---\n# greeter\n",
             "tool.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def greet(name: str) -> str:
@@ -235,7 +235,7 @@ async def test_package_local_helper(tmp_path: Path) -> None:
             "_helpers.py": "VALUE = 'alpha'\n",
             "tool.py": """
                 from _helpers import VALUE
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def a() -> str:
@@ -250,7 +250,7 @@ async def test_package_local_helper(tmp_path: Path) -> None:
             "_helpers.py": "VALUE = 'beta'\n",
             "tool.py": """
                 from _helpers import VALUE
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def b() -> str:
@@ -271,7 +271,7 @@ async def test_disable_hides_from_schemas_and_call(tmp_path: Path) -> None:
         tmp_path,
         **{
             "t.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def echo(text: str) -> str:
@@ -304,7 +304,7 @@ def test_state_persistence(tmp_path: Path) -> None:
         tmp_path,
         **{
             "t.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool
                 async def a() -> str:
@@ -332,7 +332,7 @@ def test_openai_schema_shape(tmp_path: Path) -> None:
         tmp_path,
         **{
             "t.py": """
-                from sysbot.mcp import tool
+                from lesysbot.mcp import tool
 
                 @tool(description="d")
                 async def f(x: str) -> str:

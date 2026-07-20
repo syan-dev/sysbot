@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import socket
+
 import pytest
 
 pytest.importorskip("aiohttp")
 
 from aiohttp.test_utils import TestClient, TestServer  # noqa: E402
 
-from sysbot.core.config import Settings, resolve_paths  # noqa: E402
-from sysbot.dashboard.server import Dashboard  # noqa: E402
-from sysbot.mcp.registry import ToolRegistry  # noqa: E402
+from lesysbot.core.config import Settings, resolve_paths  # noqa: E402
+from lesysbot.dashboard.server import Dashboard  # noqa: E402
+from lesysbot.mcp.registry import ToolRegistry  # noqa: E402
 
 TOOL = '''
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 @tool(description="pingy")
 async def pingy() -> str:
@@ -43,7 +46,7 @@ class _FakeAgent:
 
 @pytest.fixture
 async def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("SYSBOT_HOME", str(tmp_path / ".sysbot"))
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / ".lesysbot"))
     monkeypatch.chdir(tmp_path)
     pkg = tmp_path / "tools" / "net"
     pkg.mkdir(parents=True)
@@ -91,3 +94,36 @@ async def test_remove_deletes_package(client, tmp_path):
     # gone from subsequent status calls too
     status = await (await client.get("/api/status")).json()
     assert status["tools"] == []
+
+
+async def test_start_falls_back_when_port_taken(tmp_path, monkeypatch):
+    import aiohttp
+
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / ".lesysbot"))
+    monkeypatch.chdir(tmp_path)
+    settings = Settings.load()
+    resolve_paths(settings)
+
+    # Occupy a port and point the dashboard at it — start() should walk
+    # forward to a free one and record it on dash.port.
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        taken = sock.getsockname()[1]
+        settings.dashboard.port = taken
+
+        dash = Dashboard(_FakeAgent(ToolRegistry()), settings)
+        task = asyncio.create_task(dash.start())
+        try:
+            for _ in range(100):
+                if dash.port is not None:
+                    break
+                await asyncio.sleep(0.05)
+            assert dash.port is not None, "dashboard never bound a port"
+            assert dash.port != taken
+
+            async with aiohttp.ClientSession() as session:
+                resp = await session.get(f"http://127.0.0.1:{dash.port}/api/status")
+                assert resp.status == 200
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)

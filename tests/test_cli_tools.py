@@ -1,4 +1,4 @@
-"""`sysbot tools …` CLI: parser grammar and dispatch over a real temp tools dir."""
+"""`lesysbot tools …` CLI: parser grammar and dispatch over a real temp tools dir."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import json
 
 import pytest
 
-from sysbot.__main__ import build_parser
-from sysbot.mcp import cli as tool_cli
+from lesysbot.__main__ import build_parser
+from lesysbot.mcp import cli as tool_cli
 
 TOOL = '''
-from sysbot.mcp import tool
+from lesysbot.mcp import tool
 
 @tool(description="say hi")
 async def greet() -> str:
@@ -45,7 +45,7 @@ def test_config_flag_both_positions():
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     """Hermetic home + cwd: paths anchor to tmp_path (no config file found)."""
-    monkeypatch.setenv("SYSBOT_HOME", str(tmp_path / ".sysbot"))
+    monkeypatch.setenv("LESYSBOT_HOME", str(tmp_path / ".lesysbot"))
     monkeypatch.chdir(tmp_path)
     pkg = tmp_path / "tools" / "greet"
     pkg.mkdir(parents=True)
@@ -86,7 +86,7 @@ def test_info(env, capsys):
 
 
 def test_remove_deletes_package_and_lock_entry(env):
-    from sysbot.install.lockfile import LOCK_KEY, JsonState
+    from lesysbot.install.lockfile import LOCK_KEY, JsonState
 
     lock = JsonState(env / "tools.lock.json", LOCK_KEY)
     lock.save({"greet": {"repo": "acme/greet"}})
@@ -118,8 +118,8 @@ def test_install_rejects_non_github_input(env, capsys):
 
 
 def test_install_dispatches_to_installer(env, monkeypatch):
-    import sysbot.install.manager as manager_mod
-    from sysbot.install.spec import ToolSource
+    import lesysbot.install.manager as manager_mod
+    from lesysbot.install.spec import ToolSource
 
     calls = {}
 
@@ -139,7 +139,7 @@ def test_install_dispatches_to_installer(env, monkeypatch):
 
 
 def test_list_shows_install_origin(env, capsys):
-    from sysbot.install.lockfile import LOCK_KEY, JsonState
+    from lesysbot.install.lockfile import LOCK_KEY, JsonState
 
     JsonState(env / "tools.lock.json", LOCK_KEY).save(
         {"greet": {"repo": "acme/greet", "commit": "a" * 40}}

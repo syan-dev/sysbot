@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from sysbot.core.agent import _EMPTY_REPLY_FALLBACK, Agent, _parse_args, _usage
-from sysbot.core.config import Settings
-from sysbot.core.types import ConversationHistory, Message, Role
+from lesysbot.core.agent import _EMPTY_REPLY_FALLBACK, Agent, _parse_args, _usage
+from lesysbot.core.config import Settings
+from lesysbot.core.types import ConversationHistory, Message, Role, ToolCall
+from lesysbot.mcp import tool
 
 
 def test_parse_args_positional() -> None:
@@ -60,6 +61,40 @@ async def test_empty_llm_reply_falls_back(monkeypatch) -> None:
 
     reply = await agent.handle("u1", "current speed internet")
     assert reply == _EMPTY_REPLY_FALLBACK
+
+
+async def test_empty_llm_reply_falls_back_to_tool_result(monkeypatch) -> None:
+    # Regression: a local model can stream zero tokens on the turn that summarises
+    # a tool result. The tool already produced the answer (here: a dashboard link
+    # and passcode), so handle() must return that instead of the generic apology.
+    settings = Settings()
+    settings.logging.trace_file = None
+    agent = Agent(settings)
+
+    @tool(description="Start the dashboard")
+    async def start_dashboard() -> str:
+        return "Dashboard is live!\nPasscode: 8vug6dxhdk"
+
+    agent.registry.register_callable(start_dashboard)
+
+    calls = 0
+
+    async def fake_chat(messages, tools=None, on_token=None, on_reasoning=None):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return Message(
+                role=Role.ASSISTANT,
+                content="",
+                tool_calls=[ToolCall(id="c1", name="start_dashboard", arguments={})],
+            )
+        return Message(role=Role.ASSISTANT, content="")
+
+    monkeypatch.setattr(agent._llm, "chat", fake_chat)
+
+    reply = await agent.handle("u1", "send me the link dashboard")
+    assert "8vug6dxhdk" in reply
+    assert reply != _EMPTY_REPLY_FALLBACK
 
 
 async def test_nonempty_llm_reply_passes_through(monkeypatch) -> None:

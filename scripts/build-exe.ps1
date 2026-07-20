@@ -1,16 +1,16 @@
 #Requires -Version 5.1
-# SysBot — build a standalone Windows executable
+# LeSysBot — build a standalone Windows executable
 # Usage:   .\scripts\build-exe.ps1 [-OneFile] [-SkipProviders] [-Clean]
 # If blocked by execution policy:
 #   powershell -ExecutionPolicy Bypass -File scripts\build-exe.ps1
 #
-# Output: dist\SysBot\            ready-to-ship folder (sysbot.exe + config.yaml + tools\)
-#         dist\SysBot-<ver>-windows-x64.zip   the same folder, zipped for distribution
+# Output: dist\LeSysBot\            ready-to-ship folder (lesysbot.exe + config.yaml + tools\)
+#         dist\LeSysBot-<ver>-windows-x64.zip   the same folder, zipped for distribution
 #
 # See docs/building-windows-exe.md for the full guide.
 
 param(
-    [switch]$OneFile,        # produce a single sysbot.exe instead of a one-folder build
+    [switch]$OneFile,        # produce a single lesysbot.exe instead of a one-folder build
     [switch]$SkipProviders,  # smaller CLI-only exe (no Telegram/Slack bundled)
     [switch]$Clean           # remove build/, dist/ and the build venv first
 )
@@ -29,7 +29,7 @@ Set-Location $RepoDir
 $VenvDir  = Join-Path $RepoDir ".build-venv"
 $DistDir  = Join-Path $RepoDir "dist"
 $BuildDir = Join-Path $RepoDir "build"
-$Staging  = Join-Path $DistDir "SysBot"
+$Staging  = Join-Path $DistDir "LeSysBot"
 
 # ── Python ────────────────────────────────────────────────────────────────────
 Section "Python"
@@ -63,20 +63,23 @@ $VenvPy = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path $VenvPy)) { Die "venv python not found at $VenvPy" }
 
 & $VenvPy -m pip install --quiet --upgrade pip
-& $VenvPy -m pip install --quiet .
+# .[all] pulls Telegram, Slack (incl. aiohttp) and the dashboard; the bare
+# install is the CLI-only build.
+if ($SkipProviders) { & $VenvPy -m pip install --quiet . }
+else                { & $VenvPy -m pip install --quiet ".[all]" }
 & $VenvPy -m pip install --quiet pyinstaller
 if (-not $SkipProviders) {
-    # slack-bolt's async transport needs aiohttp; httpx powers example tools.
-    & $VenvPy -m pip install --quiet aiohttp httpx
+    # httpx powers example tools; the provider deps came from the [all] extra.
+    & $VenvPy -m pip install --quiet httpx
 }
 Ok "dependencies installed"
 
 # ── Run PyInstaller ───────────────────────────────────────────────────────────
 Section "PyInstaller"
-$env:SYSBOT_BUILD_ONEFILE        = if ($OneFile)        { "1" } else { "" }
-$env:SYSBOT_BUILD_SKIP_PROVIDERS = if ($SkipProviders)  { "1" } else { "" }
+$env:LESYSBOT_BUILD_ONEFILE        = if ($OneFile)        { "1" } else { "" }
+$env:LESYSBOT_BUILD_SKIP_PROVIDERS = if ($SkipProviders)  { "1" } else { "" }
 
-& $VenvPy -m PyInstaller --noconfirm --clean (Join-Path "packaging" "sysbot.spec")
+& $VenvPy -m PyInstaller --noconfirm --clean (Join-Path "packaging" "lesysbot.spec")
 if ($LASTEXITCODE -ne 0) { Die "PyInstaller build failed." }
 Ok "executable built"
 
@@ -86,10 +89,10 @@ if (Test-Path $Staging) { Remove-Item -Recurse -Force $Staging }
 New-Item -ItemType Directory -Path $Staging | Out-Null
 
 if ($OneFile) {
-    Copy-Item (Join-Path $DistDir "sysbot.exe") $Staging
+    Copy-Item (Join-Path $DistDir "lesysbot.exe") $Staging
 } else {
-    # one-folder build lands in dist\sysbot\ — move its contents into dist\SysBot\
-    Copy-Item (Join-Path $DistDir "sysbot\*") $Staging -Recurse
+    # one-folder build lands in dist\lesysbot\ — move its contents into dist\LeSysBot\
+    Copy-Item (Join-Path $DistDir "lesysbot\*") $Staging -Recurse
 }
 
 # Ship an editable config and the example tools next to the exe.
@@ -99,22 +102,22 @@ Copy-Item (Join-Path $RepoDir "tools") (Join-Path $Staging "tools") -Recurse
 # A short read-me so end users know what to do.
 # Single-quoted here-string: no variable/backtick interpolation, text stays literal.
 @'
-SysBot - standalone Windows build
+LeSysBot - standalone Windows build
 
 1. Edit config.yaml to set your model and messaging provider.
    (Default: Ollama at http://localhost:11434/v1 - install Ollama, then run: ollama pull qwen3.5)
-2. Double-click sysbot.exe, or run it from a terminal:  .\sysbot.exe
+2. Double-click lesysbot.exe, or run it from a terminal:  .\lesysbot.exe
 3. Add your own tools by dropping .py files into the tools\ folder.
 
-Full docs: https://github.com/syan-dev/sysbot
+Full docs: https://github.com/syan-dev/lesysbot
 '@ | Set-Content -Path (Join-Path $Staging "README.txt") -Encoding UTF8
 
 Ok "assembled $Staging"
 
 # ── Zip ───────────────────────────────────────────────────────────────────────
 Section "Archive"
-$ver = (& $VenvPy -c "import sysbot; print(sysbot.__version__)").Trim()
-$zip = Join-Path $DistDir "SysBot-$ver-windows-x64.zip"
+$ver = (& $VenvPy -c "import lesysbot; print(lesysbot.__version__)").Trim()
+$zip = Join-Path $DistDir "LeSysBot-$ver-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path $Staging -DestinationPath $zip
 Ok "created $zip"
@@ -123,5 +126,5 @@ Write-Host ""
 Write-Host "  Done." -ForegroundColor Green
 Write-Host "  Folder : $Staging"
 Write-Host "  Zip    : $zip"
-Write-Host "  Test   : `"$Staging\sysbot.exe`" --provider cli"
+Write-Host "  Test   : `"$Staging\lesysbot.exe`" --provider cli"
 Write-Host ""

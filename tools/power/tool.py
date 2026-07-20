@@ -11,13 +11,43 @@ an instant poweroff kills this process before the reply can reach the user, so
 a remote (Telegram/Slack) user never learns whether the command was accepted.
 The delay guarantees the acknowledgment arrives and leaves a window for
 ``cancel_shutdown`` to abort.
+
+Just before the scheduled time (~10 s to spare — nothing can send once the
+machine is down) a final heads-up is pushed to the requesting user via
+``notify_later``, so they see the shutdown actually happening rather than only
+the "in 1 minute" acknowledgment. ``cancel_shutdown`` also cancels that
+pending announcement.
+
+Power-off with an automatic wake-up later lives in the optional
+``shutdown-wake`` package (lesysbot-linux-tools-official) — it needs Linux plus
+RTC wake-alarm hardware, so it isn't bundled here.
 """
 from __future__ import annotations
 
 import asyncio
 import platform
 
-from sysbot.mcp import tool
+from lesysbot.mcp import notify_later, tool
+
+# shutdown fires 60 s after scheduling on every OS here; announce shortly
+# before, leaving enough margin for the message to actually get out.
+_ANNOUNCE_AFTER = 50.0
+
+_pending_announce: asyncio.Task | None = None
+
+
+def _announce_later(text: str) -> None:
+    """Schedule the just-before-shutdown heads-up, replacing any pending one."""
+    global _pending_announce
+    _cancel_announce()
+    _pending_announce = notify_later(text, _ANNOUNCE_AFTER)
+
+
+def _cancel_announce() -> None:
+    global _pending_announce
+    if _pending_announce is not None and not _pending_announce.done():
+        _pending_announce.cancel()
+    _pending_announce = None
 
 
 async def _run(cmd: list[str], timeout: float = 15.0) -> tuple[int, str]:
@@ -62,8 +92,10 @@ async def reboot() -> str:
     """Schedule a reboot 1 minute from now."""
     code, out = await _run(_power_cmd("reboot"))
     if code == 0:
+        _announce_later("🔄 Rebooting now — I'll message again once I'm back online.")
         return (
             "✅ Reboot scheduled — the machine will restart in 1 minute. "
+            "I'll send a final message just before it goes down. "
             "Use /cancel_shutdown to abort."
         )
     return f"Reboot failed (exit {code}): {out or 'unknown error — may need elevated privileges.'}"
@@ -77,8 +109,12 @@ async def power_off() -> str:
     """Schedule a power-off 1 minute from now."""
     code, out = await _run(_power_cmd("poweroff"))
     if code == 0:
+        _announce_later(
+            "⏻ Powering off now — this is my last message until the machine is started again. Goodbye!"
+        )
         return (
             "✅ Shutdown scheduled — the machine will power off in 1 minute. "
+            "I'll send a final message just before it goes down. "
             "Use /cancel_shutdown to abort."
         )
     return f"Power-off failed (exit {code}): {out or 'unknown error — may need elevated privileges.'}"
@@ -89,8 +125,9 @@ async def power_off() -> str:
     confirm="Cancel the pending shutdown/reboot?",
 )
 async def cancel_shutdown() -> str:
-    """Cancel a scheduled shutdown or reboot, if one is pending."""
+    """Cancel a scheduled shutdown/reboot."""
     code, out = await _run(_power_cmd("cancel"))
-    if code == 0:
-        return "Cancelled any pending shutdown/reboot."
-    return f"Cancel failed (exit {code}): {out or 'no shutdown was pending, or it needs elevated privileges.'}"
+    if code != 0:
+        return f"Cancel failed (exit {code}): {out or 'no shutdown was pending, or it needs elevated privileges.'}"
+    _cancel_announce()
+    return "Cancelled any pending shutdown/reboot."

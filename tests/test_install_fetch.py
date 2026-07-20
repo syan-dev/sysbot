@@ -1,8 +1,8 @@
 import pytest
 
-from sysbot.install.errors import FetchError
-from sysbot.install.fetch import download_zipball, zipball_candidates
-from sysbot.install.spec import ToolSource
+from lesysbot.install.errors import FetchError
+from lesysbot.install.fetch import download_zipball, zipball_candidates
+from lesysbot.install.spec import ToolSource
 from tests.install_utils import FakeFetcher, make_github_zip
 
 

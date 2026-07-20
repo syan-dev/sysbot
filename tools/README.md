@@ -1,15 +1,15 @@
-# SysBot tools
+# LeSysBot tools
 
 Each folder here is a **self-contained, copy-paste tool package** — like a Claude
-Skill. Drop a folder into your `~/.sysbot/tools/` (the live tools dir for an
-installed setup) and restart SysBot; the tool auto-registers as both a `/slash`
+Skill. Drop a folder into your `~/.lesysbot/tools/` (the live tools dir for an
+installed setup) and restart LeSysBot; the tool auto-registers as both a `/slash`
 command and an LLM-callable function. No registration code, no edits elsewhere.
 
 These packages can also be installed straight from this repo, so instead of copying
 folders you can install them by name:
 
 ```bash
-sysbot tools install syan-dev/sysbot/tools/gpu-temp
+lesysbot tools install syan-dev/lesysbot/tools/gpu-temp
 ```
 
 See [docs/installing-tools.md](../docs/installing-tools.md).
@@ -19,20 +19,25 @@ See [docs/installing-tools.md](../docs/installing-tools.md).
 | Package        | Tools                                  | Runs on            | Needs                         |
 |----------------|----------------------------------------|--------------------|-------------------------------|
 | `system-info/` | `get_system_info`, `disk_usage`        | Linux/macOS/Win    | —                             |
+| `date-time/`   | `get_datetime`                         | Linux/macOS/Win    | —                             |
 | `power/`       | `reboot`, `power_off`, `cancel_shutdown` | Linux/macOS/Win  | — (may need sudo/admin)       |
+| `cpu-temp/`    | `cpu_temp`                             | Linux              | — (reads `/sys` sensors)      |
 | `gpu-temp/`    | `gpu_temp`                             | Linux, Windows     | `nvidia-smi` (NVIDIA driver)  |
 | `speedtest/`   | `speedtest`                            | Linux/macOS/Win    | —                             |
 | `web/`         | `fetch_url`                            | Linux/macOS/Win    | `httpx` (pip)                 |
+| `remote-dashboard/` | `start_dashboard`, `stop_dashboard`, `dashboard_status` | Linux/macOS/Win | `gradio` (pip) |
 
 A tool whose OS or required binary isn't satisfied still appears in `/help`, but
 calling it returns a one-line explanation instead of failing — so the catalog
 above is a guide, not a hard wall.
 
-Linux/Unix **shell-command** (`CLITool`) packages — `network/` (`ping`,
-`dns_lookup`, `traceroute`) and friends — live in the official companion repo:
+OS-specific packages live in the official per-platform companion repos —
+install the one matching your machine:
 
 ```bash
-sysbot tools install syan-dev/sysbot-linux-tools-official
+lesysbot tools install syan-dev/lesysbot-linux-tools-official     # ping/DNS/traceroute (also macOS), RTC shutdown-wake, hwmon temps
+lesysbot tools install syan-dev/lesysbot-windows-tools-official   # ping/tracert, wake-timer shutdown-wake, WMI temps
+lesysbot tools install syan-dev/lesysbot-macos-tools-official     # battery, pmset shutdown-wake, SMC temps
 ```
 
 ## Package layout
@@ -53,7 +58,7 @@ The **decorator args are authoritative** (the loader enforces them); the README
 frontmatter mirrors them for humans and this catalog.
 
 ```python
-from sysbot.mcp import tool, CLITool
+from lesysbot.mcp import tool, CLITool
 
 @tool(
     description="Report NVIDIA GPU temperature",

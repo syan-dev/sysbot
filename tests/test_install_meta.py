@@ -1,4 +1,4 @@
-from sysbot.install.meta import discover_packages, parse_frontmatter
+from lesysbot.install.meta import discover_packages, parse_frontmatter
 
 
 def test_parse_frontmatter_ok():
@@ -56,6 +56,28 @@ def test_discover_multi_package_repo(tmp_path):
     assert pkgs[0].version == "2.0"
     assert pkgs[1].version is None
     assert pkgs[1].description == ""
+
+
+def test_discover_tools_dir_layout(tmp_path):
+    """Collection repos keep packages under tools/ — discovery descends into it."""
+    _mkpkg(tmp_path / "tools", "alpha")
+    _mkpkg(tmp_path / "tools", "beta")
+    (tmp_path / "README.md").write_text("# collection\n")
+    (tmp_path / "_tests").mkdir()
+    (tmp_path / "_tests" / "test_alpha.py").write_text("t = 1")
+
+    pkgs = discover_packages(tmp_path, "repo")
+    assert [p.name for p in pkgs] == ["alpha", "beta"]
+
+
+def test_discover_empty_tools_dir_falls_back_to_root(tmp_path):
+    """A tools/ folder with no packages doesn't hide root-level packages."""
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools" / "README.md").write_text("# catalog\n")
+    _mkpkg(tmp_path, "gamma")
+
+    pkgs = discover_packages(tmp_path, "repo")
+    assert [p.name for p in pkgs] == ["gamma"]
 
 
 def test_discover_requirements_flag(tmp_path):

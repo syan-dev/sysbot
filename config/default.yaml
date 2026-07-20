@@ -9,9 +9,19 @@ messaging:
     bot_token: "${SLACK_BOT_TOKEN}"
     app_token: "${SLACK_APP_TOKEN}"
 
+  # Ping you when the bot comes up (for a background service: right after the
+  # machine boots) with a short system report — CPU/GPU temp, disk, internet
+  # speed, each only if this machine can answer. Telegram/Slack only.
+  startup_notice:
+    enabled: true
+    notify: []          # Telegram chat ids / Slack channel ids;
+                        # Telegram falls back to allowed_user_ids when empty
+    speedtest: true     # include internet speed (downloads speedtest_mb MB)
+    speedtest_mb: 5
+
 llm:
   base_url: "http://localhost:11434/v1"  # Ollama default
-  model: "qwen3.5"
+  model: "llama3.2"      # matches the code default and the quick-start `ollama pull`
   api_key: "ollama"      # Placeholder — required by openai SDK
   temperature: 0.7
   max_tokens: 4096
@@ -30,15 +40,15 @@ llm:
 mcp:
   tools_dir: "./tools"
   hot_reload: true  # Reload tools on file change without restart
-  # Records where `sysbot tools install` got each package (repo, pinned commit).
+  # Records where `lesysbot tools install` got each package (repo, pinned commit).
   # Relative paths anchor next to this config, like tools_dir.
   lock_file: tools.lock.json
 
 dashboard:
-  enabled: false       # or run `sysbot --dashboard`. Web UI to manage tools + LLM health.
+  enabled: false       # or run `lesysbot --dashboard`. Web UI to manage tools + LLM health.
   host: "127.0.0.1"    # localhost only, no auth — change deliberately if exposing
   port: 8765           # http://localhost:8765
-  state_file: tool_state.json  # persists disabled tools (relative → ~/.sysbot/)
+  state_file: tool_state.json  # persists disabled tools (relative → ~/.lesysbot/)
 
 agent:
   system_prompt: >
@@ -50,7 +60,7 @@ agent:
 
 logging:
   level: INFO                    # DEBUG | INFO | WARNING | ERROR | CRITICAL
-  file: logs/sysbot.log          # set to null to disable the application log
+  file: logs/lesysbot.log          # set to null to disable the application log
   trace_file: logs/traces.jsonl  # set to null to disable per-request traces
   # Both files rotate on time (TimedRotatingFileHandler) so they can't grow
   # without bound. `when` is the interval, `backup_count` how many to keep.

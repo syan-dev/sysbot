@@ -3,9 +3,9 @@ import zipfile
 
 import pytest
 
-from sysbot.install import archive
-from sysbot.install.archive import extract_tree, zip_commit_sha, zip_root
-from sysbot.install.errors import ArchiveError
+from lesysbot.install import archive
+from lesysbot.install.archive import extract_tree, zip_commit_sha, zip_root
+from lesysbot.install.errors import ArchiveError
 from tests.install_utils import SHA, make_github_zip
 
 

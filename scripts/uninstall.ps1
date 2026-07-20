@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# SysBot uninstall script — Windows
+# LeSysBot uninstall script — Windows
 # Usage (PowerShell): .\scripts\uninstall.ps1
 # If execution policy blocks it: powershell -ExecutionPolicy Bypass -File scripts\uninstall.ps1
 
@@ -11,11 +11,11 @@ function Warn ($msg) { Write-Host "  !  $msg"  -ForegroundColor Yellow }
 function Hr   ()     { Write-Host ("─" * 60) }
 
 Hr
-Write-Host "  SysBot Uninstaller" -ForegroundColor White
+Write-Host "  LeSysBot Uninstaller" -ForegroundColor White
 Hr
 
 # ── 1. Remove Task Scheduler entry ───────────────────────────────────────────
-$TaskName = "SysBot"
+$TaskName = "LeSysBot"
 if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Stop-ScheduledTask  -TaskName $TaskName -ErrorAction SilentlyContinue
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
@@ -25,11 +25,11 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 }
 
 # ── 2. Uninstall Python package ───────────────────────────────────────────────
-Info "Removing sysbot package ..."
+Info "Removing lesysbot package ..."
 try {
-    $check = & python -m pip show sysbot 2>&1
+    $check = & python -m pip show lesysbot 2>&1
     if ($LASTEXITCODE -eq 0) {
-        & python -m pip uninstall sysbot -y --quiet
+        & python -m pip uninstall lesysbot -y --quiet
         Ok "Package uninstalled"
     } else {
         Warn "Package not found in pip — skipping"
@@ -39,7 +39,7 @@ try {
 }
 
 # ── 3. Per-user data home (config, tools, logs) ──────────────────────────────
-$DataDir = if ($env:SYSBOT_HOME) { $env:SYSBOT_HOME } else { Join-Path $HOME ".sysbot" }
+$DataDir = if ($env:LESYSBOT_HOME) { $env:LESYSBOT_HOME } else { Join-Path $HOME ".lesysbot" }
 if (Test-Path $DataDir) {
     $resp = Read-Host "  Remove your config, tools and logs in $DataDir? [y/N]"
     if ($resp -match '^[Yy]') {
@@ -51,7 +51,7 @@ if (Test-Path $DataDir) {
 }
 
 Hr
-Ok "SysBot has been uninstalled."
+Ok "LeSysBot has been uninstalled."
 Write-Host ""
 Write-Host "  Optional cleanup:"
 Write-Host "    Remove-Item -Recurse -Force $DataDir     # config, tools and logs"

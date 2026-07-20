@@ -1,11 +1,11 @@
-# Architecture — How SysBot Works
+# Architecture — How LeSysBot Works
 
-This guide explains what happens inside SysBot, from the moment you send a
+This guide explains what happens inside LeSysBot, from the moment you send a
 message to the moment you get a reply. It goes **top-down**: first the big
 picture, then the life of one message step by step, then each layer in detail,
 and finally a map of *where to change what* when you want to modify it.
 
-You don't need to read this to *use* SysBot — see [Using SysBot](usage.md) for
+You don't need to read this to *use* LeSysBot — see [Using LeSysBot](usage.md) for
 that. Read this when you want to understand, modify, or contribute to the code
 (then continue to [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
@@ -13,7 +13,7 @@ that. Read this when you want to understand, modify, or contribute to the code
 
 ## 1. The big picture
 
-SysBot is three independent layers wired together by one class, `Agent`:
+LeSysBot is three independent layers wired together by one class, `Agent`:
 
 ```mermaid
 flowchart TD
@@ -24,15 +24,15 @@ flowchart TD
     registry -- "tool result" --> agent
 ```
 
-- **MessagingAdapter** ([sysbot/messaging/](../sysbot/messaging/)) — where
+- **MessagingAdapter** ([lesysbot/messaging/](../lesysbot/messaging/)) — where
   messages come from and where replies go: your terminal, Telegram, or Slack.
-- **Agent** ([sysbot/core/agent.py](../sysbot/core/agent.py)) — the middleman.
+- **Agent** ([lesysbot/core/agent.py](../lesysbot/core/agent.py)) — the middleman.
   It keeps per-user conversation history, asks the LLM what to do, runs the
   tools the LLM asks for, and loops until there's a final answer.
-- **LLMClient** ([sysbot/llm/client.py](../sysbot/llm/client.py)) — a thin
+- **LLMClient** ([lesysbot/llm/client.py](../lesysbot/llm/client.py)) — a thin
   wrapper around one OpenAI-compatible API. Ollama, vLLM, LlamaCpp, and OpenAI
   all speak this protocol, so there is no backend-specific code anywhere.
-- **ToolRegistry** ([sysbot/mcp/registry.py](../sysbot/mcp/registry.py)) — the
+- **ToolRegistry** ([lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py)) — the
   catalog of tools loaded from your `tools/` folder, with hot reload.
 
 The layers only meet inside `Agent`, so each can be swapped or extended without
@@ -42,44 +42,54 @@ dropped into `tools/`.
 
 ---
 
-## 2. Startup — from `sysbot` to a running bot
+## 2. Startup — from `lesysbot` to a running bot
 
-Everything starts in [sysbot/__main__.py](../sysbot/__main__.py):
+Everything starts in [lesysbot/__main__.py](../lesysbot/__main__.py):
 
 1. **Parse the command line.** `build_parser()` handles the flags (`-c`, `-v`,
    `--provider`, `--model`, `--base-url`, `--dashboard`). If you ran a
-   subcommand (`sysbot tools …`), it's dispatched to the tools CLI before any
+   subcommand (`lesysbot tools …`), it's dispatched to the tools CLI before any
    bot setup — the bot never starts.
 2. **Load settings.** `Settings.load()`
-   ([sysbot/core/config.py](../sysbot/core/config.py)) finds the active config
-   file (see [§7](#7-configuration--paths)), applies `SYSBOT_*` environment
+   ([lesysbot/core/config.py](../lesysbot/core/config.py)) finds the active config
+   file (see [§7](#7-configuration--paths)), applies `LESYSBOT_*` environment
    variables, then applies CLI flags on top.
 3. **Resolve paths.** Relative paths in the config (`./tools`, `logs/…`) are
    anchored to the directory the config file came from — so an installed setup
-   uses `~/.sysbot/tools`, and a dev checkout uses the repo's `tools/`.
+   uses `~/.lesysbot/tools`, and a dev checkout uses the repo's `tools/`.
 4. **Set up logging.** A Rich console handler plus a time-rotating file handler
-   on `logs/sysbot.log` (see [§10](#10-logging--tracing)).
+   on `logs/lesysbot.log` (see [§10](#10-logging--tracing)).
 5. **Build the Agent.** `Agent.setup()` loads every tool from the tools
    directory and, with `hot_reload: true`, starts a watcher that reloads them
    whenever a `.py` file changes.
 6. **Pick the adapter.** An `if/elif` on `messaging.provider` imports and
    constructs the CLI, Telegram, or Slack adapter. Adapters are imported
-   *lazily* so a missing optional dependency (e.g. `aiohttp` for Slack) doesn't
-   break the others.
+   *lazily* so a missing optional dependency doesn't break the others — the
+   Telegram and Slack packages are the `telegram`/`slack` extras, and picking a
+   provider you haven't installed names the extra to add.
 7. **Wire confirmation.** `agent.set_confirm_fn(adapter.confirm)` connects the
    adapter's confirmation UI (terminal `y/n`, Telegram buttons) to the agent,
-   so tools marked `confirm=True` can ask before running.
+   so tools marked `confirm=True` can ask before running. The adapter's
+   `send()` is also handed to `lesysbot/core/notify.py`, the out-of-band push
+   channel: a tool can call `notify_later(text, delay)` to message the
+   requesting user *after* its reply — the bundled `power` tool uses it to
+   announce "powering off now" just before a scheduled shutdown fires.
 8. **Run.** `await adapter.start(agent.handle)` blocks for the life of the
    process. If the dashboard is enabled, it runs as a *background* asyncio task
    beside the adapter and is cancelled when the adapter stops — that's why
-   typing `exit` in the CLI actually ends the process.
+   typing `exit` in the CLI actually ends the process. A second background
+   task, the **startup notice** (Telegram/Slack only, on by default), waits
+   for the adapter to connect and then pings the configured chat with a short
+   system report — CPU/GPU temperature, disk usage, internet speed — so a
+   service that starts at boot tells you the machine just came up (see
+   [Running as a Service](service.md#the-startup-notice)).
 
 ---
 
 ## 3. The life of one message
 
-This is the heart of SysBot — `Agent.handle(user_id, text)` in
-[sysbot/core/agent.py](../sysbot/core/agent.py). Every message from every
+This is the heart of LeSysBot — `Agent.handle(user_id, text)` in
+[lesysbot/core/agent.py](../lesysbot/core/agent.py). Every message from every
 adapter goes through the same steps:
 
 ```mermaid
@@ -152,7 +162,7 @@ that don't pass them (Telegram, Slack) are simply unaffected.
 
 ## 4. The LLM layer — one client for every backend
 
-[sysbot/llm/client.py](../sysbot/llm/client.py) holds a single `AsyncOpenAI`
+[lesysbot/llm/client.py](../lesysbot/llm/client.py) holds a single `AsyncOpenAI`
 client with a configurable `base_url`. That's the whole trick: Ollama, vLLM,
 and LlamaCpp all expose an OpenAI-compatible API, so switching backends is a
 config change, not a code change:
@@ -183,17 +193,17 @@ and picks tools by name; the `/slash` dispatcher uses the same catalog.
 
 Two ways to define one (full guide: [Writing Tools](writing-tools.md)):
 
-- **`@tool`** ([sysbot/mcp/decorators.py](../sysbot/mcp/decorators.py)) —
+- **`@tool`** ([lesysbot/mcp/decorators.py](../lesysbot/mcp/decorators.py)) —
   decorates a Python function and builds the parameter schema from its type
   hints. Sync functions are wrapped in async automatically.
-- **`CLITool`** ([sysbot/mcp/cli_tool.py](../sysbot/mcp/cli_tool.py)) — wraps
+- **`CLITool`** ([lesysbot/mcp/cli_tool.py](../lesysbot/mcp/cli_tool.py)) — wraps
   a shell command template (`"ping -c 3 {host}"`) with named parameters and a
   timeout.
 
 ### 5.2 How tools are discovered
 
 At startup (and on every hot reload), `ToolRegistry.load_directory()`
-([sysbot/mcp/registry.py](../sysbot/mcp/registry.py)) scans the tools
+([lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py)) scans the tools
 directory:
 
 1. Every non-`_`-prefixed `.py` file directly in `tools/` is imported (quick
@@ -212,7 +222,7 @@ whenever a `.py` under `tools/` changes — save a file and the tool is live.
 
 Tools can declare `platforms=["linux", …]` and `requires=["nvidia-smi", …]`
 (PATH binaries, checked with `shutil.which` in
-[sysbot/mcp/platform.py](../sysbot/mcp/platform.py)). A tool that can't run on
+[lesysbot/mcp/platform.py](../lesysbot/mcp/platform.py)). A tool that can't run on
 the current machine is **still registered** — it shows up in `/help` and to
 the LLM — but calling it returns a one-line explanation instead of a cryptic
 failure. Pip dependencies are *not* `requires` entries; tools import them and
@@ -229,7 +239,7 @@ to `tool_state.json` so it survives restarts and hot reloads.
 ## 6. The messaging layer — adapters
 
 Every adapter implements the same tiny interface
-([sysbot/messaging/base.py](../sysbot/messaging/base.py)):
+([lesysbot/messaging/base.py](../lesysbot/messaging/base.py)):
 
 - `start(handler)` — connect to the platform and call
   `await handler(user_id, text)` for each incoming message.
@@ -239,15 +249,16 @@ Every adapter implements the same tiny interface
 
 The three built-ins:
 
-- **CLI** ([sysbot/messaging/cli.py](../sysbot/messaging/cli.py)) — reads
+- **CLI** ([lesysbot/messaging/cli.py](../lesysbot/messaging/cli.py)) — reads
   stdin, renders streamed answers as live Markdown with a status spinner, and
   prints slash-command output verbatim so column layouts survive.
-- **Telegram** ([sysbot/messaging/telegram.py](../sysbot/messaging/telegram.py))
-  — python-telegram-bot v20+, an `allowed_user_ids` allow-list, and ✅/❌
+- **Telegram** ([lesysbot/messaging/telegram.py](../lesysbot/messaging/telegram.py))
+  — the `telegram` extra (python-telegram-bot v20+), an `allowed_user_ids`
+  allow-list, and ✅/❌
   inline buttons for confirmation. Malformed Markdown falls back to plain text
   so no reply is ever dropped.
-- **Slack** ([sysbot/messaging/slack.py](../sysbot/messaging/slack.py)) —
-  Socket Mode DMs (needs the optional `aiohttp` dependency).
+- **Slack** ([lesysbot/messaging/slack.py](../lesysbot/messaging/slack.py)) —
+  Socket Mode DMs (the `slack` extra: `slack-bolt` + `aiohttp`).
 
 Adding a platform means subclassing the base and adding one `elif` in
 `__main__.py` — the step-by-step is in
@@ -259,32 +270,32 @@ Adding a platform means subclassing the base and adding one `elif` in
 
 Two modules decide *which settings apply* and *where files live*:
 
-**[sysbot/core/config.py](../sysbot/core/config.py)** — `Settings.load()`
-searches, in order: the `-c` flag → `./config.yaml` → `~/.sysbot/config.yaml`
+**[lesysbot/core/config.py](../lesysbot/core/config.py)** — `Settings.load()`
+searches, in order: the `-c` flag → `./config.yaml` → `~/.lesysbot/config.yaml`
 (what the installer writes) → `config.yaml` next to a frozen `.exe` →
 `config/default.yaml` → built-in defaults. Every field can also be overridden
-by a `SYSBOT_` environment variable (`SYSBOT_LLM__MODEL=…`, `__` = nesting)
+by a `LESYSBOT_` environment variable (`LESYSBOT_LLM__MODEL=…`, `__` = nesting)
 and by CLI flags, in that order of increasing precedence. The loaded file's
 directory is remembered as `config_dir`.
 
-**[sysbot/core/paths.py](../sysbot/core/paths.py)** — relative paths in the
-config (`./tools`, `logs/sysbot.log`) are anchored to that `config_dir`. This
+**[lesysbot/core/paths.py](../lesysbot/core/paths.py)** — relative paths in the
+config (`./tools`, `logs/lesysbot.log`) are anchored to that `config_dir`. This
 one rule makes all three deployment shapes work unchanged:
 
 | Setup | Active config | `./tools` resolves to |
 |---|---|---|
-| Installed (wizard) | `~/.sysbot/config.yaml` | `~/.sysbot/tools/` |
+| Installed (wizard) | `~/.lesysbot/config.yaml` | `~/.lesysbot/tools/` |
 | Dev checkout | `./config.yaml` in the repo | the repo's `tools/` |
 | Frozen `.exe` | `config.yaml` next to the exe | `tools\` next to the exe |
 
-`~/.sysbot/` is the stable per-user home (override with `SYSBOT_HOME`); the
+`~/.lesysbot/` is the stable per-user home (override with `LESYSBOT_HOME`); the
 full reference is in [Configuration](configuration.md).
 
 ---
 
 ## 8. The tool installer
 
-`sysbot tools install owner/repo` ([sysbot/install/](../sysbot/install/))
+`lesysbot tools install owner/repo` ([lesysbot/install/](../lesysbot/install/))
 downloads a tool folder package from GitHub **into the same tools directory
 the bot loads** — so a running bot picks it up via hot reload. The pipeline,
 one module per stage:
@@ -300,7 +311,7 @@ User guide: [Installing Tools](installing-tools.md); trust model included.
 
 ## 9. The dashboard
 
-An optional local web UI ([sysbot/dashboard/server.py](../sysbot/dashboard/server.py),
+An optional local web UI ([lesysbot/dashboard/server.py](../lesysbot/dashboard/server.py),
 enabled with `--dashboard`) that shows every tool's status, toggles them
 on/off, and probes LLM health. It runs as a background asyncio task beside the
 messaging adapter and reads everything through the `Agent.registry` /
@@ -312,13 +323,13 @@ only, with no auth. User guide: [Dashboard](dashboard.md).
 ## 10. Logging & tracing
 
 Two independent records of what happened
-(paths anchored like everything else — `~/.sysbot/logs/` when installed):
+(paths anchored like everything else — `~/.lesysbot/logs/` when installed):
 
-- **`logs/sysbot.log`** — the plain-text application log, rotated on a timer
+- **`logs/lesysbot.log`** — the plain-text application log, rotated on a timer
   (`logging.when`, default midnight; `logging.backup_count` files kept). In an
   interactive CLI session the *console* only shows warnings so chat stays
   clean; the *file* always gets the configured `logging.level`.
-- **`logs/traces.jsonl`** ([sysbot/core/trace.py](../sysbot/core/trace.py)) —
+- **`logs/traces.jsonl`** ([lesysbot/core/trace.py](../lesysbot/core/trace.py)) —
   one JSON line per user message: every LLM turn, every tool call with its
   arguments and duration, and the final reply. This is the first place to look
   when you're debugging *what the model decided to do*. Format reference:
@@ -332,11 +343,11 @@ Two independent records of what happened
 |---|---|---|
 | Add a capability (new tool) | a new folder in `tools/` — no core code | [Writing Tools](writing-tools.md) |
 | Share a tool with others | a GitHub repo — nothing else | [Sharing Tools](sharing-tools.md) |
-| Support a new chat platform | new file in [sysbot/messaging/](../sysbot/messaging/) + one `elif` in [sysbot/__main__.py](../sysbot/__main__.py) | [Adapters §4](adapters.md#4-building-a-custom-adapter) |
+| Support a new chat platform | new file in [lesysbot/messaging/](../lesysbot/messaging/) + one `elif` in [lesysbot/__main__.py](../lesysbot/__main__.py) | [Adapters §4](adapters.md#4-building-a-custom-adapter) |
 | Support a new LLM backend | usually nothing — set `llm.base_url` | [Configuration §3](configuration.md#3-llm-backends) |
-| Change the tool-calling loop, history, confirmations | [sysbot/core/agent.py](../sysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
-| Change tool discovery, gating, hot reload | [sysbot/mcp/registry.py](../sysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
-| Add a config setting | [sysbot/core/config.py](../sysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Change the tool-calling loop, history, confirmations | [lesysbot/core/agent.py](../lesysbot/core/agent.py) | this page, [§3](#3-the-life-of-one-message) |
+| Change tool discovery, gating, hot reload | [lesysbot/mcp/registry.py](../lesysbot/mcp/registry.py) | this page, [§5](#5-the-tool-layer--registry-decorator-gating) |
+| Add a config setting | [lesysbot/core/config.py](../lesysbot/core/config.py) + `config/default.yaml` + [configuration.md](configuration.md) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 | Change the install wizard | `scripts/install.sh` **and** `scripts/install.ps1` (kept in sync) | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 ---

@@ -1,6 +1,6 @@
 import json
 
-from sysbot.install.lockfile import JsonState
+from lesysbot.install.lockfile import JsonState
 
 
 def test_load_missing_file(tmp_path):

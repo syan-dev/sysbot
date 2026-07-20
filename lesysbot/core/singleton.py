@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import hashlib
+import os
+from pathlib import Path
+from typing import TYPE_CHECKING, IO
+
+from lesysbot.core.paths import user_dir
+
+if TYPE_CHECKING:
+    from lesysbot.core.config import Settings
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
+
+# Open lock files kept referenced for the life of the process — closing (or
+# garbage-collecting) the handle would release the OS lock.
+_held: dict[str, IO[bytes]] = {}
+
+
+def instance_key(settings: Settings) -> str:
+    """Lock key for this bot: provider plus a short digest of its token.
+
+    Keyed on the token so two *different* bots (different tokens) can coexist
+    on one machine, while a second copy of the *same* bot — which would fight
+    over the same updates — cannot.
+    """
+    provider = settings.messaging.provider
+    if provider == "telegram":
+        token = settings.messaging.telegram.token
+    elif provider == "slack":
+        token = settings.messaging.slack.app_token or settings.messaging.slack.bot_token
+    else:
+        token = ""
+    digest = hashlib.sha256(token.encode()).hexdigest()[:8] if token else "default"
+    return f"lesysbot.{provider}.{digest}"
+
+
+def _lock_path(key: str) -> Path:
+    return user_dir() / f"{key}.lock"
+
+
+def acquire_instance_lock(key: str) -> bool:
+    """Try to become the single running instance for *key*.
+
+    Backed by an OS-level advisory lock on ``~/.lesysbot/<key>.lock``. The
+    kernel releases the lock when the holding process exits — crash included —
+    so a leftover lock file never wedges a restart. Returns False when another
+    live process already holds the lock.
+    """
+    if key in _held:
+        return True
+    path = _lock_path(key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(path, "a+b")
+    try:
+        if os.name == "nt":
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        fh.close()
+        return False
+    # Record our PID so the "already running" error can name the holder.
+    os.ftruncate(fh.fileno(), 0)
+    fh.seek(0)
+    fh.write(str(os.getpid()).encode("ascii"))
+    fh.flush()
+    _held[key] = fh
+    return True
+
+
+def release_instance_lock(key: str) -> None:
+    """Release a lock this process holds (mainly for tests)."""
+    fh = _held.pop(key, None)
+    if fh is not None:
+        fh.close()
+
+
+def holder_pid(key: str) -> int | None:
+    """PID recorded in the lock file, best effort.
+
+    Windows byte locks are mandatory, so reading while another process holds
+    the lock can fail — return None and let the caller word its message
+    without a PID.
+    """
+    try:
+        text = _lock_path(key).read_text(encoding="ascii").strip()
+        return int(text) if text else None
+    except (OSError, ValueError):
+        return None

@@ -1,11 +1,11 @@
 ---
 name: add-tool
-description: Scaffold a new SysBot tool package in tools/ following project conventions — a self-contained folder (README + tool.py) using @tool for Python logic or CLITool for shell commands, with confirmation, typing, and cross-platform gating. Use when asked to "add a tool", "write a tool", "create a command", "make SysBot able to <do X>", or expose a new capability/slash command.
+description: Scaffold a new LeSysBot tool package in tools/ following project conventions — a self-contained folder (README + tool.py) using @tool for Python logic or CLITool for shell commands, with confirmation, typing, and cross-platform gating. Use when asked to "add a tool", "write a tool", "create a command", "make LeSysBot able to <do X>", or expose a new capability/slash command.
 ---
 
-# Add a SysBot tool
+# Add a LeSysBot tool
 
-SysBot tools are **self-contained, copy-paste folder packages** under `tools/` —
+LeSysBot tools are **self-contained, copy-paste folder packages** under `tools/` —
 like a Claude Skill. A package is a folder with a `README.md` and a `tool.py`.
 Every non-`_`-prefixed `.py` inside it is imported at startup (and hot-reloaded on
 save); anything decorated with `@tool` or any `CLITool` instance is registered and
@@ -25,7 +25,7 @@ dropped straight in `tools/` also still works for quick local tools.)
 
    ```python
    # tools/find-files/tool.py
-   from sysbot.mcp import tool, CLITool
+   from lesysbot.mcp import tool, CLITool
 
    @tool(description="Search files by pattern")
    async def find_files(pattern: str, directory: str = ".") -> str:
@@ -45,11 +45,14 @@ dropped straight in `tools/` also still works for quick local tools.)
    - `requires=["nvidia-smi"]` — executables that must be on `PATH`; omit = none.
    Both work on `@tool` and `CLITool`. On an unsupported OS / missing binary the
    tool still registers but returns a one-line explanation instead of running.
+   A `CLITool` whose syntax differs per OS can take `command` as a dict keyed by
+   OS name (`command={"linux": "ping -c 3 {host}", "windows": "ping -n 3 {host}"}`);
+   the current OS's variant runs, and `platforms` defaults to the dict's keys.
    Pip deps are **not** `requires` (those are PATH binaries) — import them in the
    tool, handle `ImportError`, and list them in the package's `requirements.txt`.
 
 4. **Write `README.md`** with frontmatter mirroring the code (for humans, the
-   catalog, and the tools CLI — `sysbot tools list/info` display it)
+   catalog, and the tools CLI — `lesysbot tools list/info` display it)
    and a short usage blurb:
 
    ```markdown
@@ -58,7 +61,7 @@ dropped straight in `tools/` also still works for quick local tools.)
    description: Search files by pattern
    platforms: all
    requires: []
-   version: "1.0.0"        # optional; shown/recorded by `sysbot tools …`
+   version: "1.0.0"        # optional; shown/recorded by `lesysbot tools …`
    ---
    # find-files
    **Runs on:** Linux · macOS · Windows · **Needs:** nothing
@@ -77,15 +80,15 @@ dropped straight in `tools/` also still works for quick local tools.)
 - A new tool appears in `/help` automatically; no registration code needed.
 - Match the style of existing packages in `tools/` (e.g. `system-info/`, `speedtest/`).
 - Add a row to `tools/README.md` (the catalog table).
-- The same folder shape is what `sysbot tools install owner/repo` downloads,
+- The same folder shape is what `lesysbot tools install owner/repo` downloads,
   so a package pushed to its own GitHub repo is installable as-is (and the
-  bundled ones install via `sysbot tools install syan-dev/sysbot/tools/<name>`)
+  bundled ones install via `lesysbot tools install syan-dev/lesysbot/tools/<name>`)
   — see [docs/sharing-tools.md](../../../docs/sharing-tools.md).
 
 ## Verify
 
 - `ruff check tools/` — lint.
-- Run `sysbot --provider cli`, then `/help` (tool listed; gated tools show a "⚠ unavailable here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up saves.
+- Run `lesysbot --provider cli`, then `/help` (tool listed; gated tools show a "⚠ unavailable here" note) and `/<name> <args>` (runs without the LLM). Hot reload picks up saves.
 - If logic is non-trivial, add a test under `tests/` (registries are built over temp tool dirs — see `tests/test_registry.py`; `asyncio_mode=auto` means async tests need no decorator).
 
 Full reference: [docs/writing-tools.md](../../../docs/writing-tools.md), the catalog [tools/README.md](../../../tools/README.md), and the tool-registry/decorator notes in [CLAUDE.md](../../../CLAUDE.md).

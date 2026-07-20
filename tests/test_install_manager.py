@@ -4,10 +4,10 @@ import json
 import pytest
 from rich.console import Console
 
-from sysbot.mcp import ToolRegistry
-from sysbot.install.errors import ToolInstallError
-from sysbot.install.manager import ToolInstaller
-from sysbot.install.spec import ToolSource
+from lesysbot.mcp import ToolRegistry
+from lesysbot.install.errors import ToolInstallError
+from lesysbot.install.manager import ToolInstaller
+from lesysbot.install.spec import ToolSource
 from tests.install_utils import SHA, FakeFetcher, make_github_zip, package_files
 
 
@@ -51,7 +51,7 @@ def test_install_multi_package(tmp_path):
     assert lock["alpha"]["commit"] == SHA
     assert lock["alpha"]["version"] == "1.2.0"
     # No stray staging dirs left behind.
-    assert not list(tmp_path.glob(".sysbot-stage-*"))
+    assert not list(tmp_path.glob(".lesysbot-stage-*"))
 
 
 def test_install_subdir_single_package(tmp_path):
@@ -88,7 +88,7 @@ def test_install_declined_confirmation(tmp_path):
     mgr = _manager(tmp_path, fetcher, confirm=lambda _msg: False)
     assert mgr.install(ToolSource("acme", "repo")) == []
     assert not (tmp_path / "tools" / "alpha").exists()
-    assert not list(tmp_path.glob(".sysbot-stage-*"))
+    assert not list(tmp_path.glob(".lesysbot-stage-*"))
 
 
 def test_collision_with_unmanaged_dir(tmp_path):
@@ -128,39 +128,9 @@ def test_requirements_hint_without_flag(tmp_path):
     assert (tmp_path / "tools" / "alpha" / "requirements.txt").exists()
 
 
-def test_list_installed_and_unmanaged(tmp_path):
-    fetcher = FakeFetcher({HEAD_URL: _repo_zip("alpha")})
-    mgr = _manager(tmp_path, fetcher)
-    mgr.install(ToolSource("acme", "repo"), yes=True)
-    (tmp_path / "tools" / "seeded").mkdir()
-
-    rows = {r["name"]: r for r in mgr.list_installed()}
-    assert rows["alpha"]["managed"] is True and rows["alpha"]["present"] is True
-    assert rows["seeded"]["managed"] is False
-
-    # Deleted on disk but still in the lock → flagged missing.
-    import shutil
-
-    shutil.rmtree(tmp_path / "tools" / "alpha")
-    rows = {r["name"]: r for r in mgr.list_installed()}
-    assert rows["alpha"]["present"] is False
-
-
-def test_info(tmp_path):
-    fetcher = FakeFetcher({HEAD_URL: _repo_zip("alpha")})
-    mgr = _manager(tmp_path, fetcher)
-    mgr.install(ToolSource("acme", "repo"), yes=True)
-    info = mgr.info("alpha")
-    assert info["repo"] == "acme/repo"
-    assert "tool.py" in info["files"]
-
-    with pytest.raises(ToolInstallError, match="No tool package"):
-        mgr.info("nope")
-
-
 def test_registry_remove_plus_drop_entries_clears_lock(tmp_path):
     """Removal contract: registry deletes the package, drop_entries cleans the lock."""
-    from sysbot.install.lockfile import drop_entries
+    from lesysbot.install.lockfile import drop_entries
 
     fetcher = FakeFetcher({HEAD_URL: _repo_zip("alpha")})
     mgr = _manager(tmp_path, fetcher)

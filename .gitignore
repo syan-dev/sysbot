@@ -21,6 +21,6 @@ logs/
 # Local config (ships as config/default.yaml; users create their own)
 config.yaml
 
-# Installer / dashboard state (dev-checkout artifacts; installed setups keep theirs in ~/.sysbot)
+# Installer / dashboard state (dev-checkout artifacts; installed setups keep theirs in ~/.lesysbot)
 tools.lock.json
 tool_state.json

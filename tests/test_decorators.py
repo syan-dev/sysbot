@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from sysbot.mcp.decorators import tool
+from lesysbot.mcp.decorators import tool
 
 
 def test_schema_from_type_hints() -> None:

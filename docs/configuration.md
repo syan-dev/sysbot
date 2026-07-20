@@ -1,6 +1,6 @@
 # Configuration
 
-SysBot is configured via a YAML file and optionally overridden by environment variables or CLI flags.
+LeSysBot is configured via a YAML file and optionally overridden by environment variables or CLI flags.
 
 ---
 
@@ -12,31 +12,38 @@ Copy the default config and edit it:
 cp config/default.yaml config.yaml
 ```
 
-SysBot looks for config in this order:
+LeSysBot looks for config in this order:
 1. Path given with `-c / --config`
 2. `config.yaml` in the working directory
-3. `~/.sysbot/config.yaml` — the per-user home the installer writes to
+3. `~/.lesysbot/config.yaml` — the per-user home the installer writes to
 4. `config.yaml` next to the executable (frozen `.exe` builds)
-5. `config/default.yaml`
+5. `config/default.yaml` — the defaults shipped with the source
 6. Built-in defaults (no file needed)
 
-### `~/.sysbot/` — the installed home
+Entries 1–4 are configs *you* edit, so relative paths inside them (`tools_dir`,
+`logging.file`, …) resolve **next to that file** — see
+[`~/.lesysbot/` below](#lesysbot--the-installed-home). Entry 5 ships with the
+package, so it supplies values but does *not* become the anchor: relative paths
+still resolve against the working directory, which is why a fresh checkout
+finds its own `tools/` rather than `config/tools/`.
 
-`scripts/install.sh` / `install.ps1` write your settings to **`~/.sysbot/config.yaml`**
-and seed **`~/.sysbot/tools/`** there, decoupled from wherever you cloned the source.
+### `~/.lesysbot/` — the installed home
+
+`scripts/install.sh` / `install.ps1` write your settings to **`~/.lesysbot/config.yaml`**
+and seed **`~/.lesysbot/tools/`** there, decoupled from wherever you cloned the source.
 The background service (systemd/launchd/Task Scheduler) runs from this directory, so
 this is the one place to edit and apply settings:
 
 ```bash
-$EDITOR ~/.sysbot/config.yaml
-systemctl --user restart sysbot     # Linux  (launchctl kickstart -k … on macOS)
+$EDITOR ~/.lesysbot/config.yaml
+systemctl --user restart lesysbot     # Linux  (launchctl kickstart -k … on macOS)
 ```
 
 Relative `mcp.tools_dir` (`./tools`) and `logging.file`/`trace_file` (`logs/…`) are
 resolved against the directory the loaded `config.yaml` lives in — so for an installed
-setup they point at `~/.sysbot/tools` and `~/.sysbot/logs`, and for a dev checkout with
-a local `./config.yaml` they stay relative to the repo (unchanged). Set `SYSBOT_HOME`
-to use a directory other than `~/.sysbot`.
+setup they point at `~/.lesysbot/tools` and `~/.lesysbot/logs`, and for a dev checkout with
+a local `./config.yaml` they stay relative to the repo (unchanged). Set `LESYSBOT_HOME`
+to use a directory other than `~/.lesysbot`.
 
 ---
 
@@ -55,6 +62,13 @@ messaging:
   slack:
     bot_token: "xoxb-..."
     app_token: "xapp-..."    # Socket Mode app token
+
+  startup_notice:            # ping you when the bot comes up (Telegram/Slack only)
+    enabled: true            # for a background service this fires right after boot
+    notify: []               # Telegram chat ids / Slack channel ids;
+                             # Telegram falls back to allowed_user_ids when empty
+    speedtest: true          # include internet speed (downloads speedtest_mb MB)
+    speedtest_mb: 5
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
 llm:
@@ -81,23 +95,23 @@ agent:
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 dashboard:
-  enabled: false             # or run `sysbot --dashboard`; needs `pip install aiohttp`
+  enabled: false             # or run `lesysbot --dashboard`; needs the `dashboard` extra
   host: "127.0.0.1"          # localhost only, no auth — change deliberately if exposing
   port: 8765                 # http://localhost:8765
-  state_file: tool_state.json   # persisted disabled tools; anchored like tools_dir → ~/.sysbot/
+  state_file: tool_state.json   # persisted disabled tools; anchored like tools_dir → ~/.lesysbot/
 
 
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging:
   level: INFO                # DEBUG | INFO | WARNING | ERROR | CRITICAL
-  file: logs/sysbot.log      # plain-text log; null to disable
+  file: logs/lesysbot.log      # plain-text log; null to disable
   trace_file: logs/traces.jsonl   # structured per-request JSON traces; null to disable
   when: midnight             # rotation interval: midnight | H | D | W0..W6 | S
   backup_count: 7            # keep this many rotated files, then delete oldest
 ```
 
-Both `file` and `trace_file` rotate on time (Python's `TimedRotatingFileHandler`), so neither grows without bound: at each `when` rollover the current file is renamed with a date suffix (e.g. `sysbot.log.2026-06-21`) and only the newest `backup_count` are kept. `level` sets how much detail is written (and shown on the console for the Telegram/Slack daemons); `-v` forces `DEBUG`. In interactive CLI the console is always kept at `WARNING` or above so logs don't interrupt the chat — the file still gets everything at `level`.
+Both `file` and `trace_file` rotate on time (Python's `TimedRotatingFileHandler`), so neither grows without bound: at each `when` rollover the current file is renamed with a date suffix (e.g. `lesysbot.log.2026-06-21`) and only the newest `backup_count` are kept. `level` sets how much detail is written (and shown on the console for the Telegram/Slack daemons); `-v` forces `DEBUG`. In interactive CLI the console is always kept at `WARNING` or above so logs don't interrupt the chat — the file still gets everything at `level`.
 
 ---
 
@@ -125,15 +139,28 @@ llm:
 
 ## 4. Environment variable overrides
 
-Every config value can be set via an environment variable. The format is `SYSBOT_` + the key path with `__` as the nesting separator:
+String values in `config.yaml` may reference environment variables as
+`${VAR_NAME}` — the reference is replaced with the variable's value when the
+config is loaded, so secrets can stay out of the file:
+
+```yaml
+messaging:
+  telegram:
+    token: ${TELEGRAM_TOKEN}
+```
+
+If the variable is unset, the literal `${...}` text is kept and a warning is
+logged — the bot won't silently run with a placeholder token.
+
+Every config value can also be set directly via an environment variable. The format is `LESYSBOT_` + the key path with `__` as the nesting separator:
 
 ```bash
-SYSBOT_LLM__MODEL=qwen3.5
-SYSBOT_LLM__BASE_URL=http://localhost:8000/v1
-SYSBOT_MESSAGING__PROVIDER=telegram
-SYSBOT_MESSAGING__TELEGRAM__TOKEN=1234567890:ABCDEFabcdef
-SYSBOT_AGENT__MAX_HISTORY=100
-SYSBOT_LOGGING__LEVEL=DEBUG
+LESYSBOT_LLM__MODEL=qwen3.5
+LESYSBOT_LLM__BASE_URL=http://localhost:8000/v1
+LESYSBOT_MESSAGING__PROVIDER=telegram
+LESYSBOT_MESSAGING__TELEGRAM__TOKEN=1234567890:ABCDEFabcdef
+LESYSBOT_AGENT__MAX_HISTORY=100
+LESYSBOT_LOGGING__LEVEL=DEBUG
 ```
 
 Environment variables take precedence over `config.yaml`.
@@ -143,18 +170,19 @@ Environment variables take precedence over `config.yaml`.
 ## 5. CLI flags
 
 ```
-sysbot [-c CONFIG] [-v] [--provider PROVIDER] [--model MODEL] [--base-url URL] [--dashboard]
-sysbot tools …           # install/list/enable/disable/remove tools — see docs/installing-tools.md
+lesysbot [-c CONFIG] [-v] [--provider PROVIDER] [--model MODEL] [--base-url URL] [--dashboard] [--port N]
+lesysbot tools …           # install/list/enable/disable/remove tools — see docs/installing-tools.md
 ```
 
 | Flag | Overrides | Example |
 |---|---|---|
-| `-c / --config` | config file path | `-c /etc/sysbot/config.yaml` |
+| `-c / --config` | config file path | `-c /etc/lesysbot/config.yaml` |
 | `-v / --verbose` | `logging.level` → DEBUG | `-v` |
 | `--provider` | `messaging.provider` | `--provider telegram` |
 | `--model` | `llm.model` | `--model qwen3.5` |
 | `--base-url` | `llm.base_url` | `--base-url http://localhost:8000/v1` |
 | `--dashboard` | `dashboard.enabled` → true | `--dashboard` |
+| `--port` | `dashboard.port` (implies `--dashboard`) | `--port 9000` |
 
 CLI flags take precedence over environment variables and `config.yaml`.
 

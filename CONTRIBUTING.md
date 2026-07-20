@@ -1,6 +1,6 @@
-# Contributing to SysBot
+# Contributing to LeSysBot
 
-Thanks for wanting to improve SysBot! This guide walks you through a
+Thanks for wanting to improve LeSysBot! This guide walks you through a
 contribution **step by step** — from picking what to build, through setting up
 a dev environment, to opening a pull request. If you haven't yet, skim
 [docs/architecture.md](docs/architecture.md) first: it explains how the pieces
@@ -15,14 +15,14 @@ core at all:
 
 | You want to… | What you'll write | Core code changed? | Start here |
 |---|---|---|---|
-| Give SysBot a new ability | A tool package in `tools/` | No | [§4](#4-contributing-a-tool) |
+| Give LeSysBot a new ability | A tool package in `tools/` | No | [§4](#4-contributing-a-tool) |
 | Share a tool under your own GitHub account | Your own tool repo (no PR needed here!) | No | [docs/sharing-tools.md](docs/sharing-tools.md) |
-| Support a new chat platform | An adapter in `sysbot/messaging/` | One `elif` | [§5](#5-contributing-a-messaging-adapter) |
-| Fix a bug / add a core feature | Code in `sysbot/` + a test | Yes | [§6](#6-contributing-a-core-change) |
+| Support a new chat platform | An adapter in `lesysbot/messaging/` | One `elif` | [§5](#5-contributing-a-messaging-adapter) |
+| Fix a bug / add a core feature | Code in `lesysbot/` + a test | Yes | [§6](#6-contributing-a-core-change) |
 | Improve the docs | Markdown in `docs/` or the root | No | [§7](#7-contributing-documentation) |
 
 > **Tools don't have to live in this repo.** Anyone can share tools from
-> a plain GitHub repo and users install it with `sysbot tools install you/repo`
+> a plain GitHub repo and users install it with `lesysbot tools install you/repo`
 > — no PR, no review, no waiting. Contribute a tool *here* when it's broadly
 > useful enough to belong in the bundled catalog.
 
@@ -33,12 +33,13 @@ core at all:
 **Step 1 — Fork and clone.**
 
 ```bash
-git clone https://github.com/<your-username>/sysbot.git
-cd sysbot
+git clone https://github.com/<your-username>/lesysbot.git
+cd lesysbot
 git checkout -b my-change
 ```
 
-**Step 2 — Install in editable mode with dev extras** (adds `pytest` + `ruff`):
+**Step 2 — Install in editable mode with dev extras** (adds `pytest` + `ruff`
+on top of `[all]`, so Telegram, Slack and the dashboard are all importable):
 
 ```bash
 pip install -e ".[dev]"
@@ -49,7 +50,7 @@ build in site-packages can shadow the repo, making your edits silently do
 nothing:
 
 ```bash
-python -c "import sysbot; print(sysbot.__file__)"
+python -c "import lesysbot; print(lesysbot.__file__)"
 # → must print a path inside YOUR clone. If not, re-run: pip install -e .
 ```
 
@@ -57,7 +58,7 @@ python -c "import sysbot; print(sysbot.__file__)"
 
 ```bash
 pytest              # the whole suite runs in seconds, no LLM/network needed
-ruff check sysbot/  # lint
+ruff check lesysbot/  # lint
 ```
 
 **Step 5 (optional) — Run the bot** to try things live. You'll need
@@ -65,8 +66,8 @@ ruff check sysbot/  # lint
 commands (and therefore most tool testing) work with no model at all:
 
 ```bash
-sysbot --provider cli          # chat + /commands
-sysbot --provider cli -v       # with DEBUG logging on screen
+lesysbot --provider cli          # chat + /commands
+lesysbot --provider cli -v       # with DEBUG logging on screen
 ```
 
 A dev checkout loads tools from the repo's `tools/` and reads `./config.yaml`
@@ -77,14 +78,14 @@ if you create one (`cp config/default.yaml config.yaml`).
 ## 3. Know your way around
 
 ```
-sysbot/            the package
+lesysbot/            the package
 ├─ __main__.py       entry point: flags, logging, adapter wiring
 ├─ core/             Agent (the tool-calling loop), config, paths, tracing
 ├─ llm/              the OpenAI-compatible client (all backends)
 ├─ mcp/              tool registry, @tool decorator, CLITool, platform gating
 ├─ messaging/        CLI / Telegram / Slack adapters + the base interface
 ├─ dashboard/        optional local web UI
-└─ install/          `sysbot tools install` — fetch tool packages from GitHub
+└─ install/          `lesysbot tools install` — fetch tool packages from GitHub
 tools/             bundled tool packages (the catalog users get seeded with)
 tests/             pytest suite — hermetic: no network, no LLM, temp dirs
 docs/              user & contributor guides (see docs/README.md for the map)
@@ -114,7 +115,7 @@ Follow [docs/writing-tools.md](docs/writing-tools.md) for everything that goes
 in `tool.py` — type hints (they become the LLM-facing schema), `confirm=` for
 anything destructive, `platforms=`/`requires=` when it isn't universal.
 
-**Step 2 — Test it live.** Run `sysbot --provider cli`, then:
+**Step 2 — Test it live.** Run `lesysbot --provider cli`, then:
 
 - check it appears in `/help` with the right signature;
 - call it directly: `/my_tool arg=value` (works without an LLM);
@@ -124,7 +125,7 @@ Hot reload means you can edit → save → retry without restarting.
 
 **Step 3 — Update the catalog.** Add a row to
 [tools/README.md](tools/README.md) so people browsing the repo can find it
-(bundled packages install via `sysbot tools install syan-dev/sysbot/tools/<name>`).
+(bundled packages install via `lesysbot tools install syan-dev/lesysbot/tools/<name>`).
 
 **Step 4 — Lint, then open the PR** ([§8](#8-open-the-pull-request)). Tool
 packages don't require unit tests, but the tool must load cleanly (step 2) and
@@ -138,15 +139,15 @@ packages don't require unit tests, but the tool must load cleanly (step 2) and
 ## 5. Contributing a messaging adapter
 
 **Step 1 — Subclass `MessagingAdapter`** in a new
-`sysbot/messaging/<platform>.py`, implementing `start()` and `send()`, and
+`lesysbot/messaging/<platform>.py`, implementing `start()` and `send()`, and
 override `confirm()` if the platform can show a yes/no UI. The annotated
 template is in [docs/adapters.md §4](docs/adapters.md#4-building-a-custom-adapter).
 
 **Step 2 — Wire it up:** add an `elif` to the provider block in
-[sysbot/__main__.py](sysbot/__main__.py) (keep the import *inside* the branch —
+[lesysbot/__main__.py](lesysbot/__main__.py) (keep the import *inside* the branch —
 adapters are imported lazily so optional deps don't break other providers) and
 add a config model for its credentials in
-[sysbot/core/config.py](sysbot/core/config.py) + [config/default.yaml](config/default.yaml).
+[lesysbot/core/config.py](lesysbot/core/config.py) + [config/default.yaml](config/default.yaml).
 
 **Step 3 — Document it:** a setup section in
 [docs/adapters.md](docs/adapters.md) following the Telegram/Slack pattern
@@ -162,7 +163,7 @@ PR.
 ## 6. Contributing a core change
 
 **Step 1 — Write a failing test first** in `tests/`. The suite is hermetic —
-tests build registries/agents over temp dirs, monkeypatch `SYSBOT_HOME`, and
+tests build registries/agents over temp dirs, monkeypatch `LESYSBOT_HOME`, and
 fake GitHub with `tests/install_utils.py` — keep yours the same (no network, no
 real LLM). `asyncio_mode = "auto"` is set, so `async def` tests need no
 decorator.
@@ -176,7 +177,7 @@ only for constraints the code can't express.
 pytest                              # all
 pytest tests/test_agent.py          # one file
 pytest tests/test_agent.py::test_x  # one test
-ruff check sysbot/
+ruff check lesysbot/
 ```
 
 **Step 4 — Update whatever the change makes stale:** `config/default.yaml` and
@@ -212,7 +213,7 @@ detail** — and each page **walks step by step** through one job. When editing:
 **Step 1 — Final check:**
 
 - [ ] `pytest` passes
-- [ ] `ruff check sysbot/` is clean
+- [ ] `ruff check lesysbot/` is clean
 - [ ] New behaviour is covered by a test (core changes) or a live `/help` +
       invocation check (tools)
 - [ ] Docs updated (the page that documents what you changed, plus
